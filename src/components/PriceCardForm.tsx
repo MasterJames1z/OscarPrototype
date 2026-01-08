@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     TextField,
     Button,
@@ -22,21 +22,41 @@ interface OptionType {
 interface PriceCardFormProps {
     open: boolean;
     onClose: () => void;
-    onSubmit: (data: Omit<PriceCard, 'id' | 'createdAt' | 'status'>) => void;
+    onSubmit: (data: Omit<PriceCard, 'id' | 'createdAt' | 'status' | 'createdBy'>) => void;
     editingCard?: PriceCard | null;
     allResources: string[];
 }
 
 const filter = createFilterOptions<OptionType>();
 
+const INITIAL_FORM_STATE = {
+    resourceName: '',
+    unitPrice: '',
+    startDate: '',
+    endDate: '',
+};
+
 export default function PriceCardForm({ open, onClose, onSubmit, editingCard, allResources }: PriceCardFormProps) {
     const { t } = useApp();
-    const [formData, setFormData] = useState({
-        resourceName: editingCard?.resourceName || '',
-        unitPrice: editingCard?.unitPrice.toString() || '',
-        startDate: editingCard?.startDate || '',
-        endDate: editingCard?.endDate || '',
-    });
+    const [formData, setFormData] = useState(INITIAL_FORM_STATE);
+
+    useEffect(() => {
+        if (editingCard) {
+            setFormData({
+                resourceName: editingCard.resourceName,
+                unitPrice: editingCard.unitPrice.toString(),
+                startDate: editingCard.startDate,
+                endDate: editingCard.endDate,
+            });
+        } else {
+            setFormData(INITIAL_FORM_STATE);
+        }
+    }, [editingCard, open]);
+
+    const handleClose = () => {
+        setFormData(INITIAL_FORM_STATE);
+        onClose();
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -53,7 +73,7 @@ export default function PriceCardForm({ open, onClose, onSubmit, editingCard, al
     return (
         <Dialog
             open={open}
-            onClose={onClose}
+            onClose={handleClose}
             maxWidth="sm"
             fullWidth
             PaperProps={{
@@ -155,7 +175,7 @@ export default function PriceCardForm({ open, onClose, onSubmit, editingCard, al
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ p: 3, pt: 1 }}>
-                    <Button onClick={onClose} sx={{ color: 'text.secondary' }}>
+                    <Button onClick={handleClose} sx={{ color: 'text.secondary' }}>
                         {t('form.cancel')}
                     </Button>
                     <Button

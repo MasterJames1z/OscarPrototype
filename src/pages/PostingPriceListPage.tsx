@@ -63,16 +63,26 @@ export default function PostingPriceListPage() {
         setActiveTab(newValue);
     };
 
-    const handleFormSubmit = (data: Omit<PriceCard, 'id' | 'createdAt' | 'status'>) => {
+    const handleFormSubmit = (data: Omit<PriceCard, 'id' | 'createdAt' | 'status' | 'createdBy'>) => {
         if (editingCard) {
-            updateCard(editingCard.id, data);
-            setSnackbar({ open: true, message: t('msg.updated'), severity: 'success' });
+            const success = updateCard(editingCard.id, data);
+            if (success) {
+                setSnackbar({ open: true, message: t('msg.updated'), severity: 'success' });
+                setIsFormOpen(false);
+                setEditingCard(null);
+            } else {
+                setSnackbar({ open: true, message: t('msg.overlapError') || 'Overlap detected! 1 price per day only.', severity: 'error' });
+            }
         } else {
-            addCard(data);
-            setSnackbar({ open: true, message: t('msg.created'), severity: 'success' });
+            const success = addCard(data);
+            if (success) {
+                setSnackbar({ open: true, message: t('msg.created'), severity: 'success' });
+                setIsFormOpen(false);
+                setEditingCard(null);
+            } else {
+                setSnackbar({ open: true, message: t('msg.overlapError') || 'Overlap detected! 1 price per day only.', severity: 'error' });
+            }
         }
-        setIsFormOpen(false);
-        setEditingCard(null);
     };
 
     const handleEdit = (card: PriceCard) => {
@@ -93,6 +103,20 @@ export default function PostingPriceListPage() {
     const handleDuplicate = (id: string) => {
         duplicateCard(id);
         setSnackbar({ open: true, message: t('msg.duplicated'), severity: 'success' });
+    };
+
+    const handleQuickUpdate = (id: string, data: Partial<PriceCard>) => {
+        const card = cards.find(c => c.id === id);
+        if (!card) return;
+        const success = updateCard(id, {
+            resourceName: data.resourceName ?? card.resourceName,
+            unitPrice: data.unitPrice ?? card.unitPrice,
+            startDate: data.startDate ?? card.startDate,
+            endDate: data.endDate ?? card.endDate,
+        });
+        if (!success) {
+            setSnackbar({ open: true, message: t('msg.overlapError') || 'Overlap detected!', severity: 'error' });
+        }
     };
 
     const openCreateForm = () => {
@@ -176,6 +200,7 @@ export default function PostingPriceListPage() {
                                 onEdit={handleEdit}
                                 onDuplicate={handleDuplicate}
                                 onDelete={handleDelete}
+                                onUpdate={handleQuickUpdate}
                                 allResources={allResources}
                             />
                         </TabPanel>

@@ -23,7 +23,7 @@ import {
     TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
 import type { PriceCard, CardStatus } from '../types';
-import { doRangesOverlap, getCardStatus } from '../utils/date.ts';
+import { doRangesOverlap, getCardStatus, calculateDays } from '../utils/date.ts';
 import { useApp } from '../context/useApp';
 
 interface CardsViewProps {
@@ -180,6 +180,17 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
                                         <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>{t('card.unitPrice')}</Typography>
                                         <Typography variant="h5" sx={{ color: 'primary.main', fontWeight: 800 }}>
                                             ฿{card.unitPrice.toLocaleString()}
+                                        </Typography>
+                                    </Box>
+
+                                    <Box sx={{ textAlign: 'right' }}>
+                                        {currentStatus === 'active' && (
+                                            <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontWeight: 700, mb: 0.5 }}>
+                                                {calculateDays(new Date().toISOString(), card.endDate)} {t('card.daysLeft') || 'days left'}
+                                            </Typography>
+                                        )}
+                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                            by {card.createdBy}
                                         </Typography>
                                     </Box>
 

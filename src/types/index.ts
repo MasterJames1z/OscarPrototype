@@ -9,6 +9,7 @@ export interface PriceCard {
   unitPrice: number;
   status: CardStatus;
   createdAt: string;
+  createdBy: string;
 }
 
 export interface ResourceOption {

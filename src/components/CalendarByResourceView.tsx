@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
     Box,
     Paper,
@@ -25,6 +25,7 @@ interface CalendarByResourceViewProps {
     onEdit: (card: PriceCard) => void;
     onDuplicate: (id: string) => void;
     onDelete: (id: string) => void;
+    onUpdate: (id: string, data: Partial<PriceCard>) => void;
     allResources: string[];
 }
 
@@ -34,15 +35,27 @@ const RESOURCE_COL_WIDTH = 200;
 const CARD_HEIGHT = 32;
 const CARD_GAP = 6;
 
+interface Interaction {
+    type: 'drag' | 'resize-start' | 'resize-end';
+    card: PriceCard;
+    initialMouseX: number;
+    initialStart: dayjs.Dayjs;
+    initialEnd: dayjs.Dayjs;
+}
+
 export default function CalendarByResourceView({
     cards,
     onEdit,
+    onUpdate,
     allResources,
 }: CalendarByResourceViewProps) {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const [viewMode, setViewMode] = useState<ViewMode>('month');
     const [currentDate, setCurrentDate] = useState(getToday());
+    const [interaction, setInteraction] = useState<Interaction | null>(null);
+    const [previewSnapDays, setPreviewSnapDays] = useState(0);
+    const gridRef = useRef<HTMLDivElement>(null);
 
     const COLORS = {
         bg: theme.palette.background.default,
@@ -58,6 +71,8 @@ export default function CalendarByResourceView({
         cardBorder: theme.palette.primary.dark,
     };
 
+    const getTodayMemo = useMemo(() => getToday(), []);
+
     const timeRange = useMemo(() => {
         const start = currentDate.startOf(viewMode as dayjs.OpUnitType);
         const end = currentDate.endOf(viewMode as dayjs.OpUnitType);
@@ -69,24 +84,104 @@ export default function CalendarByResourceView({
             const weekStart = currentDate.startOf('week');
             for (let i = 0; i < 7; i++) {
                 const d = weekStart.add(i, 'day');
-                cols.push({ date: d, label: d.format('ddd D'), highlight: d.isSame(getToday(), 'day') });
+                cols.push({ date: d, label: d.format('ddd D'), highlight: d.isSame(getTodayMemo, 'day') });
             }
         } else if (viewMode === 'month') {
             const daysInMonth = currentDate.daysInMonth();
             const monthStart = currentDate.startOf('month');
             for (let i = 0; i < daysInMonth; i++) {
                 const d = monthStart.add(i, 'day');
-                cols.push({ date: d, label: d.format('D'), highlight: d.isSame(getToday(), 'day') });
+                cols.push({ date: d, label: d.format('D'), highlight: d.isSame(getTodayMemo, 'day') });
             }
         } else if (viewMode === 'year') {
             const yearStart = currentDate.startOf('year');
             for (let i = 0; i < 12; i++) {
                 const d = yearStart.add(i, 'month');
-                cols.push({ date: d, label: d.format('MMM'), highlight: d.isSame(getToday(), 'month') });
+                cols.push({ date: d, label: d.format('MMM'), highlight: d.isSame(getTodayMemo, 'month') });
             }
         }
         return { start, end, cols };
-    }, [viewMode, currentDate]);
+    }, [viewMode, currentDate, getTodayMemo]);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!interaction || !gridRef.current) return;
+
+            const rect = gridRef.current.getBoundingClientRect();
+            const gridWidth = rect.width - RESOURCE_COL_WIDTH;
+            const deltaX = e.clientX - interaction.initialMouseX;
+
+            const viewStart = timeRange.start.startOf('day');
+            const viewEnd = timeRange.end.endOf('day');
+            const totalDiff = viewEnd.clone().add(1, 'millisecond').diff(viewStart);
+
+            const msPerPixel = totalDiff / gridWidth;
+            const deltaMs = deltaX * msPerPixel;
+            const deltaDays = Math.round(deltaMs / (24 * 60 * 60 * 1000));
+
+            setPreviewSnapDays(deltaDays);
+        };
+
+        const handleMouseUp = (e: MouseEvent) => {
+            if (!interaction || !gridRef.current) return;
+
+            const rect = gridRef.current.getBoundingClientRect();
+            const gridWidth = rect.width - RESOURCE_COL_WIDTH;
+            const deltaX = e.clientX - interaction.initialMouseX;
+
+            const viewStart = timeRange.start.startOf('day');
+            const viewEnd = timeRange.end.endOf('day');
+            const totalDiff = viewEnd.clone().add(1, 'millisecond').diff(viewStart);
+
+            const msPerPixel = totalDiff / gridWidth;
+            const deltaMs = deltaX * msPerPixel;
+            const deltaDays = Math.round(deltaMs / (24 * 60 * 60 * 1000));
+
+            if (deltaDays !== 0) {
+                let newStart = interaction.initialStart;
+                let newEnd = interaction.initialEnd;
+
+                if (interaction.type === 'drag') {
+                    newStart = interaction.initialStart.add(deltaDays, 'day');
+                    newEnd = interaction.initialEnd.add(deltaDays, 'day');
+                } else if (interaction.type === 'resize-start') {
+                    newStart = interaction.initialStart.add(deltaDays, 'day');
+                    if (newStart.isAfter(newEnd)) newStart = newEnd;
+                } else if (interaction.type === 'resize-end') {
+                    newEnd = interaction.initialEnd.add(deltaDays, 'day');
+                    if (newEnd.isBefore(newStart)) newEnd = newStart;
+                }
+
+                onUpdate(interaction.card.id, {
+                    startDate: newStart.format('YYYY-MM-DD'),
+                    endDate: newEnd.format('YYYY-MM-DD'),
+                });
+            }
+
+            setInteraction(null);
+            setPreviewSnapDays(0);
+        };
+
+        if (interaction) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [interaction, timeRange, onUpdate]);
+
+    const handleInteractionStart = (e: React.MouseEvent, type: Interaction['type'], card: PriceCard) => {
+        e.stopPropagation();
+        setInteraction({
+            type,
+            card,
+            initialMouseX: e.clientX,
+            initialStart: dayjs(card.startDate).startOf('day'),
+            initialEnd: dayjs(card.endDate).startOf('day'),
+        });
+    };
 
     const processedResources = useMemo(() => {
         return allResources.map(resource => {
@@ -115,12 +210,32 @@ export default function CalendarByResourceView({
     }, [allResources, cards, timeRange]);
 
     const getCardStyle = (card: PriceCard) => {
-        const diff = timeRange.end.diff(timeRange.start) || 1;
-        const cardStart = dayjs(card.startDate).isBefore(timeRange.start) ? timeRange.start : dayjs(card.startDate);
-        const cardEnd = dayjs(card.endDate).isAfter(timeRange.end) ? timeRange.end : dayjs(card.endDate);
+        const viewStart = timeRange.start.startOf('day');
+        const viewEnd = timeRange.end.endOf('day');
+        const totalDiff = viewEnd.clone().add(1, 'millisecond').diff(viewStart);
 
-        const left = (cardStart.diff(timeRange.start) / diff) * 100;
-        const width = (cardEnd.diff(cardStart) / diff) * 100;
+        let cardStart = dayjs(card.startDate).startOf('day');
+        let cardEnd = dayjs(card.endDate).endOf('day');
+
+        // Apply preview if this is the interaction target
+        if (interaction?.card.id === card.id && previewSnapDays !== 0) {
+            if (interaction.type === 'drag') {
+                cardStart = cardStart.add(previewSnapDays, 'day');
+                cardEnd = cardEnd.add(previewSnapDays, 'day');
+            } else if (interaction.type === 'resize-start') {
+                cardStart = cardStart.add(previewSnapDays, 'day');
+                if (cardStart.isAfter(cardEnd)) cardStart = cardEnd;
+            } else if (interaction.type === 'resize-end') {
+                cardEnd = cardEnd.add(previewSnapDays, 'day');
+                if (cardEnd.isBefore(cardStart)) cardEnd = cardStart;
+            }
+        }
+
+        const effectiveStart = cardStart.isBefore(viewStart) ? viewStart : cardStart;
+        const effectiveEnd = cardEnd.isAfter(viewEnd) ? viewEnd : cardEnd;
+
+        const left = (effectiveStart.diff(viewStart) / totalDiff) * 100;
+        const width = (effectiveEnd.clone().add(1, 'millisecond').diff(effectiveStart) / totalDiff) * 100;
 
         let bgColor = COLORS.cardBg;
         let borderColor = COLORS.cardBorder;
@@ -131,7 +246,7 @@ export default function CalendarByResourceView({
 
         return {
             left: `${left}%`,
-            width: `${Math.max(width, 0.2)}%`,
+            width: `${Math.max(width, 0.1)}%`,
             backgroundColor: bgColor,
             borderColor: borderColor
         };
@@ -174,7 +289,7 @@ export default function CalendarByResourceView({
                         </Box>
                     </Box>
 
-                    <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
+                    <Box ref={gridRef} sx={{ flexGrow: 1, overflowY: 'auto' }}>
                         {processedResources.map(({ resource, tracks }) => {
                             const rowHeight = (Math.max(tracks.length, 1) * (CARD_HEIGHT + CARD_GAP)) + 32;
                             return (
@@ -191,10 +306,84 @@ export default function CalendarByResourceView({
                                         </Box>
                                         {tracks.map((track, trackIndex) => track.map(card => {
                                             const style = getCardStyle(card);
+                                            const isInteractionTarget = interaction?.card.id === card.id;
+
                                             return (
                                                 <Tooltip key={card.id} title={`${card.unitPrice.toLocaleString()} THB (${card.startDate} - ${card.endDate})`} arrow>
-                                                    <Box onClick={() => onEdit(card)} sx={{ position: 'absolute', top: 16 + (trackIndex * (CARD_HEIGHT + CARD_GAP)), height: CARD_HEIGHT, borderRadius: 1.5, cursor: 'pointer', display: 'flex', alignItems: 'center', px: viewMode === 'month' ? 0.5 : 1.5, fontSize: viewMode === 'month' ? '0.7rem' : '0.8rem', color: '#fff', fontWeight: 700, borderLeft: '4px solid', ...style, zIndex: 10, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                                                        <Box component="span" sx={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>฿{card.unitPrice.toLocaleString()}</Box>
+                                                    <Box
+                                                        onMouseDown={(e) => handleInteractionStart(e, 'drag', card)}
+                                                        sx={{
+                                                            position: 'absolute',
+                                                            top: 16 + (trackIndex * (CARD_HEIGHT + CARD_GAP)),
+                                                            height: CARD_HEIGHT,
+                                                            borderRadius: 1.5,
+                                                            cursor: 'move',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            px: viewMode === 'month' ? 0.5 : 1.5,
+                                                            fontSize: viewMode === 'month' ? '0.7rem' : '0.8rem',
+                                                            color: '#fff',
+                                                            fontWeight: 700,
+                                                            borderLeft: '4px solid',
+                                                            ...style,
+                                                            zIndex: isInteractionTarget ? 20 : 10,
+                                                            whiteSpace: 'nowrap',
+                                                            overflow: 'hidden',
+                                                            transition: interaction ? 'none' : 'all 0.2s',
+                                                            opacity: interaction && !isInteractionTarget ? 0.6 : 1,
+                                                            boxShadow: isInteractionTarget ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
+                                                            '&:hover': {
+                                                                filter: 'brightness(1.1)',
+                                                            }
+                                                        }}
+                                                    >
+                                                        {/* Resize handles */}
+                                                        <Box
+                                                            onMouseDown={(e) => handleInteractionStart(e, 'resize-start', card)}
+                                                            sx={{
+                                                                position: 'absolute',
+                                                                left: 0,
+                                                                top: 0,
+                                                                width: 10,
+                                                                height: '100%',
+                                                                cursor: 'ew-resize',
+                                                                zIndex: 11,
+                                                                '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
+                                                            }}
+                                                        />
+                                                        <Box
+                                                            onMouseDown={(e) => handleInteractionStart(e, 'resize-end', card)}
+                                                            sx={{
+                                                                position: 'absolute',
+                                                                right: 0,
+                                                                top: 0,
+                                                                width: 10,
+                                                                height: '100%',
+                                                                cursor: 'ew-resize',
+                                                                zIndex: 11,
+                                                                '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
+                                                            }}
+                                                        />
+
+                                                        <Box
+                                                            component="span"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onEdit(card);
+                                                            }}
+                                                            sx={{
+                                                                textOverflow: 'ellipsis',
+                                                                overflow: 'hidden',
+                                                                width: '100%',
+                                                                height: '100%',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                pointerEvents: 'auto'
+                                                            }}
+                                                        >
+                                                            ฿{card.unitPrice.toLocaleString()}
+                                                        </Box>
                                                     </Box>
                                                 </Tooltip>
                                             );

@@ -34,13 +34,16 @@ export const translations: Record<Language, Record<string, string>> = {
         'card.valid': 'Valid',
         'card.unitPrice': 'UNIT PRICE',
         'card.scheduleOverlap': 'Schedule Overlap',
+        'card.daysLeft': 'days left',
         'status.all': 'All',
         'status.active': 'Active',
         'status.expired': 'Expired',
         'status.upcoming': 'Upcoming',
+        'msg.overlapError': 'Overlap detected! Each wood can only have one price per day.',
     },
     th: {
         'nav.home': 'หน้าหลัก',
+        // ... (cutting for brevity in replace_file_content, will provide full block)
         'nav.report': 'รายงาน',
         'nav.help': 'ช่วยเหลือ',
         'nav.language': 'ภาษา',
@@ -71,9 +74,11 @@ export const translations: Record<Language, Record<string, string>> = {
         'card.valid': 'มีผล',
         'card.unitPrice': 'ราคาต่อหน่วย',
         'card.scheduleOverlap': 'ช่วงเวลาซ้อนทับกัน',
+        'card.daysLeft': 'วันที่เหลือ',
         'status.all': 'ทั้งหมด',
         'status.active': 'ใช้งานอยู่',
         'status.expired': 'หมดอายุ',
         'status.upcoming': 'เร็วๆ นี้',
+        'msg.overlapError': 'ตรวจพบช่วงเวลาที่ทับซ้อนกัน! ไม้แต่ละชนิดสามารถมีได้เพียง 1 ราคาต่อวันเท่านั้น',
     }
 };
