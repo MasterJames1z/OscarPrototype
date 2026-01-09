@@ -205,7 +205,7 @@ export default function PostingPriceListPage() {
                                 allResources={allResources}
                             />
                         </TabPanel>
-                        <TabPanel value={activeTab} index={1} contentSx={{ p: 4, width: '100%', height: '100%' }}>
+                        <TabPanel value={activeTab} index={1} contentSx={{ p: 0, width: '100%', height: '100%' }}>
                             <CardsView
                                 cards={cards}
                                 onEdit={handleEdit}

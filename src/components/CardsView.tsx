@@ -55,7 +55,7 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
     };
 
     return (
-        <Box sx={{ p: 1 }}>
+        <Box sx={{ p: { xs: 2, md: 1 }, height: '100%', overflowY: 'auto' }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 4 }} alignItems={{ md: 'center' }}>
                 <TextField
                     placeholder={t('search.placeholder')}
