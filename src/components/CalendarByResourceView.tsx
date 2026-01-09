@@ -9,7 +9,8 @@ import {
     alpha,
     useTheme,
     Avatar,
-    Stack
+    Stack,
+    useMediaQuery
 } from '@mui/material';
 import {
     ChevronLeft as ChevronLeftIcon,
@@ -252,33 +253,43 @@ export default function CalendarByResourceView({
         };
     };
 
+    const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+    const dynamicResourceWidth = isSmall ? 100 : RESOURCE_COL_WIDTH;
+
     return (
         <Paper elevation={0} sx={{ height: '100%', width: '100%', maxWidth: 'none', display: 'flex', flexDirection: 'column', bgcolor: COLORS.bg, color: COLORS.text, borderRadius: 2, overflow: 'hidden', border: `1px solid ${COLORS.border}` }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 2, borderBottom: `1px solid ${COLORS.border}`, bgcolor: COLORS.paper }}>
-                <Stack direction="row" alignItems="center" spacing={1}>
-                    <Typography variant="h6" fontWeight="bold" sx={{ minWidth: 150 }}>
+            <Stack direction={isSmall ? "column" : "row"} justifyContent="space-between" alignItems={isSmall ? "flex-start" : "center"} sx={{ p: 2, gap: 2, borderBottom: `1px solid ${COLORS.border}`, bgcolor: COLORS.paper }}>
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ width: isSmall ? '100%' : 'auto', justifyContent: 'space-between' }}>
+                    <Typography variant={isSmall ? "subtitle1" : "h6"} fontWeight="bold" sx={{ minWidth: isSmall ? 'auto' : 150 }}>
                         {currentDate.format(viewMode === 'year' ? 'YYYY' : 'MMMM YYYY')}
                     </Typography>
                     <ButtonGroup size="small" variant="outlined">
                         <Button onClick={() => setCurrentDate(d => d.subtract(1, viewMode as dayjs.ManipulateType))}><ChevronLeftIcon /></Button>
-                        <Button onClick={() => setCurrentDate(getToday())} startIcon={<TodayIcon />}>Today</Button>
+                        <Button onClick={() => setCurrentDate(getToday())} sx={{ display: { xs: 'none', sm: 'inline-flex' } }} startIcon={<TodayIcon />}>Today</Button>
                         <Button onClick={() => setCurrentDate(d => d.add(1, viewMode as dayjs.ManipulateType))}><ChevronRightIcon /></Button>
                     </ButtonGroup>
                 </Stack>
-                <ButtonGroup size="small" variant="contained">
+                <ButtonGroup size="small" variant="contained" fullWidth={isSmall}>
                     {(['day', 'week', 'month', 'year'] as ViewMode[]).map((v) => (
-                        <Button key={v} onClick={() => setViewMode(v)} sx={{ bgcolor: viewMode === v ? COLORS.primary : 'transparent', color: viewMode === v ? '#fff' : COLORS.textSecondary, borderColor: COLORS.border, '&:hover': { bgcolor: viewMode === v ? COLORS.primary : alpha(COLORS.primary, 0.05) } }}>
+                        <Button key={v} onClick={() => setViewMode(v)} sx={{ flex: 1, bgcolor: viewMode === v ? COLORS.primary : 'transparent', color: viewMode === v ? '#fff' : COLORS.textSecondary, borderColor: COLORS.border, '&:hover': { bgcolor: viewMode === v ? COLORS.primary : alpha(COLORS.primary, 0.05) } }}>
                             {v.charAt(0).toUpperCase() + v.slice(1)}
                         </Button>
                     ))}
                 </ButtonGroup>
             </Stack>
 
-            <Box sx={{ display: 'flex', flexGrow: 1, overflow: 'hidden', flexDirection: 'column', position: 'relative' }}>
-                <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+            <Box sx={{ display: 'flex', flexGrow: 1, overflow: 'auto', flexDirection: 'column', position: 'relative' }}>
+                <Box sx={{
+                    minWidth: isSmall
+                        ? (viewMode === 'day' ? '100%' : 800)
+                        : '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flexGrow: 1
+                }}>
                     <Box sx={{ display: 'flex', borderBottom: `1px solid ${COLORS.border}`, position: 'sticky', top: 0, zIndex: 100, bgcolor: COLORS.paper }}>
-                        <Box sx={{ width: RESOURCE_COL_WIDTH, flexShrink: 0, borderRight: `1px solid ${COLORS.border}`, p: 2 }}>
-                            <Typography variant="subtitle2" fontWeight={700} color={COLORS.textSecondary}>RESOURCE</Typography>
+                        <Box sx={{ width: dynamicResourceWidth, flexShrink: 0, borderRight: `1px solid ${COLORS.border}`, p: 2 }}>
+                            <Typography variant="caption" fontWeight={700} color={COLORS.textSecondary}>RESOURCE</Typography>
                         </Box>
                         <Box sx={{ display: 'flex', flexGrow: 1 }}>
                             {timeRange.cols.map((col, i) => (
@@ -294,9 +305,9 @@ export default function CalendarByResourceView({
                             const rowHeight = (Math.max(tracks.length, 1) * (CARD_HEIGHT + CARD_GAP)) + 32;
                             return (
                                 <Box key={resource} sx={{ display: 'flex', borderBottom: `1px solid ${COLORS.border}`, minHeight: rowHeight }}>
-                                    <Box sx={{ width: RESOURCE_COL_WIDTH, flexShrink: 0, p: 2, borderRight: `1px solid ${COLORS.border}`, display: 'flex', alignItems: 'center', bgcolor: COLORS.paper }}>
-                                        <Avatar sx={{ width: 28, height: 28, mr: 2, bgcolor: COLORS.primary }}>{resource.charAt(0)}</Avatar>
-                                        <Typography variant="body2" fontWeight={600} noWrap>{resource}</Typography>
+                                    <Box sx={{ width: dynamicResourceWidth, flexShrink: 0, p: 2, borderRight: `1px solid ${COLORS.border}`, display: 'flex', alignItems: 'center', bgcolor: COLORS.paper }}>
+                                        <Avatar sx={{ width: isSmall ? 20 : 28, height: isSmall ? 20 : 28, mr: isSmall ? 1 : 2, bgcolor: COLORS.primary, fontSize: isSmall ? 10 : 14 }}>{resource.charAt(0)}</Avatar>
+                                        <Typography variant="caption" sx={{ fontSize: isSmall ? '0.7rem' : '0.875rem' }} fontWeight={600} noWrap>{resource}</Typography>
                                     </Box>
                                     <Box sx={{ flexGrow: 1, position: 'relative', height: rowHeight }}>
                                         <Box sx={{ position: 'absolute', inset: 0, display: 'flex' }}>
@@ -398,3 +409,4 @@ export default function CalendarByResourceView({
         </Paper>
     );
 }
+

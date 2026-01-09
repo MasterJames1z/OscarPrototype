@@ -125,13 +125,13 @@ export default function PostingPriceListPage() {
     };
 
     return (
-        <Box sx={{ height: 'calc(100vh - 80px)', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', pt: 4, overflow: 'hidden' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, px: 4, width: '100%' }}>
+        <Box sx={{ height: 'calc(100vh - 80px)', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', pt: { xs: 2, md: 4 }, overflow: 'hidden' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, px: { xs: 2, md: 4 }, width: '100%' }}>
                 <Typography variant="h4" sx={{
                     fontWeight: 800,
                     color: 'primary.main',
                     letterSpacing: -0.5,
-                    fontSize: '1.75rem'
+                    fontSize: { xs: '1.25rem', md: '1.75rem' }
                 }}>
                     {t('page.title')}
                 </Typography>
@@ -141,9 +141,10 @@ export default function PostingPriceListPage() {
                     onClick={openCreateForm}
                     sx={{
                         borderRadius: 3,
-                        px: 3,
+                        px: { xs: 2, md: 3 },
                         py: 1,
                         bgcolor: 'primary.main',
+                        fontSize: { xs: '0.75rem', md: '0.875rem' },
                         '&:hover': { bgcolor: '#142a66' }
                     }}
                 >
@@ -151,7 +152,7 @@ export default function PostingPriceListPage() {
                 </Button>
             </Box>
 
-            <Box sx={{ flexGrow: 1, overflow: 'hidden', width: '100%', px: 4 }}>
+            <Box sx={{ flexGrow: 1, overflow: 'hidden', width: '100%', px: { xs: 1, sm: 2, md: 4 } }}>
                 <Paper
                     elevation={0}
                     sx={{
@@ -160,7 +161,7 @@ export default function PostingPriceListPage() {
                         display: 'flex',
                         flexDirection: 'column',
                         overflow: 'hidden',
-                        borderRadius: 5,
+                        borderRadius: { xs: 3, md: 5 },
                         bgcolor: 'background.paper',
                         border: '1px solid',
                         borderColor: alpha('#1a337e', 0.1),

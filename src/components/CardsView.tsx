@@ -81,11 +81,17 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
                 <Tabs
                     value={statusFilter}
                     onChange={(_e, newValue) => setStatusFilter(newValue)}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    allowScrollButtonsMobile
                     sx={{
                         bgcolor: alpha(theme.palette.primary.main, 0.03),
                         borderRadius: 3,
                         p: 0.5,
                         minHeight: 48,
+                        '& .MuiTabs-flexContainer': {
+                            gap: 0.5
+                        },
                         '& .MuiTabs-indicator': {
                             height: '100%',
                             borderRadius: 2.5,
@@ -100,6 +106,7 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
                             fontWeight: 600,
                             color: 'text.secondary',
                             transition: 'color 0.2s',
+                            minWidth: { xs: 80, sm: 100 },
                             '&.Mui-selected': {
                                 color: '#fff'
                             }
