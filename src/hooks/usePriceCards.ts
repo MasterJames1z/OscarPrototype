@@ -114,12 +114,21 @@ export function usePriceCards() {
         return false;
     }, [cards, saveCards]);
 
+    const getTodayPrice = useCallback((resourceName: string) => {
+        const activeCard = cards.find(c =>
+            c.resourceName === resourceName &&
+            getCardStatus(c.startDate, c.endDate) === 'active'
+        );
+        return activeCard?.unitPrice || 0;
+    }, [cards]);
+
     return {
         cards,
         addCard,
         updateCard,
         deleteCard,
         duplicateCard,
+        getTodayPrice,
         allResources: MOCK_RESOURCES,
     };
 }
