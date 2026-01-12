@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import dayjs from 'dayjs';
 import type { Ticket } from '../types';
 
 const STORAGE_KEY = 'oscar_tickets';
@@ -49,7 +50,6 @@ export function useTickets() {
     }, [tickets]);
 
     const mockFetchWeighbridge = useCallback((getPrice?: (resource: string) => number) => {
-        // Aligned with usePriceCards mocks
         const resources = [
             'Rubber Wood - Grade A',
             'Rubber Wood - Grade B',
@@ -57,28 +57,55 @@ export function useTickets() {
             'Eucalyptus',
             'Acacia',
         ];
+        const sellers = ['บริษัท ภัทรพาราวูด ทุ่งใหญ่ จำกัด', 'นางวิลัยวรรณ ไกรนรา', 'นายสมชาย รักสงบ'];
+        const plates = ['82-3572 นศ', '82-2838 นศ', '70-1234 กทม'];
+        const vehicles = ['รถสิบล้อพ่วง', 'รถหกล้อ', 'รถหัวลาก'];
+
         const randomResource = resources[Math.floor(Math.random() * resources.length)];
-        const weightIn = 15000 + Math.floor(Math.random() * 5000);
-        const weightOut = 8000 + Math.floor(Math.random() * 2000);
+        const randomSeller = sellers[Math.floor(Math.random() * sellers.length)];
+        const randomPlate = plates[Math.floor(Math.random() * plates.length)];
+        const randomVehicle = vehicles[Math.floor(Math.random() * vehicles.length)];
+        const paymentType = Math.random() > 0.5 ? 'cash' : 'po';
+
+        const weightIn = 15000 + Math.floor(Math.random() * 35000);
+        const weightOut = 5000 + Math.floor(Math.random() * 10000);
         const netWeight = weightIn - weightOut;
 
-        // Use provided price fetcher or fallback to random
-        const unitPrice = getPrice ? getPrice(randomResource) : (1200 + Math.floor(Math.random() * 300));
-        const totalPrice = (netWeight / 1000) * unitPrice;
+        const entryDate = dayjs().subtract(30, 'minute');
+        const exitDate = dayjs();
+
+        const impurity = Math.floor(Math.random() * 2); // 0 or 1%
+        const moisture = Math.floor(Math.random() * 5); // 0-4%
+        const deductedWeight = Math.floor(netWeight * (impurity + moisture) / 100);
+        const remainingWeight = netWeight - deductedWeight;
+
+        const unitPrice = getPrice ? getPrice(randomResource) : (1.1 + Math.random() * 1.5);
+        const totalPrice = (remainingWeight) * unitPrice;
 
         const newTicket: Ticket = {
             id: uuidv4(),
-            ticketNumber: `WB-${Math.floor(100000 + Math.random() * 900000)}`,
+            ticketNumber: `00000${Math.floor(25000 + Math.random() * 5000)}`,
             type: 'auto',
+            paymentType,
             resourceName: randomResource,
+            sellerName: randomSeller,
+            licensePlate: randomPlate,
+            vehicleType: randomVehicle,
             weightIn,
             weightOut,
             netWeight,
+            entryDateTime: entryDate.format('DD/MM/YYYY HH:mm:ss'),
+            exitDateTime: exitDate.format('DD/MM/YYYY HH:mm:ss'),
+            impurity,
+            moisture,
+            deductedWeight,
+            remainingWeight,
             unitPrice,
             totalPrice,
             status: 'pending',
+            remarks: '-',
             createdAt: new Date().toISOString(),
-            createdBy: 'System (Weighbridge)',
+            createdBy: 'Admin_System',
         };
 
         const updated = [newTicket, ...tickets];

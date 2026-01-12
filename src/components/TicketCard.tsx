@@ -67,11 +67,23 @@ export default function TicketCard({ ticket, onApprove, onEdit, onDelete }: Tick
                         <ShippingIcon />
                     </Box>
                     <Box sx={{ flexGrow: 1 }}>
-                        <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase' }}>
-                            {ticket.ticketNumber}
-                        </Typography>
-                        <Typography variant="h6" sx={{ color: 'primary.main', fontWeight: 800 }}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                                {ticket.ticketNumber}
+                            </Typography>
+                            <Chip
+                                label={ticket.paymentType?.toUpperCase()}
+                                size="small"
+                                color={ticket.paymentType === 'cash' ? 'success' : 'warning'}
+                                variant="outlined"
+                                sx={{ height: 16, fontSize: '0.6rem', fontWeight: 900, borderRadius: 1 }}
+                            />
+                        </Stack>
+                        <Typography variant="h6" sx={{ color: 'primary.main', fontWeight: 800, lineHeight: 1.2 }}>
                             {ticket.resourceName}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem', mt: 0.5 }}>
+                            {ticket.sellerName || 'N/A'} • {ticket.licensePlate || 'N/A'}
                         </Typography>
                     </Box>
                     <Chip
@@ -87,15 +99,19 @@ export default function TicketCard({ ticket, onApprove, onEdit, onDelete }: Tick
                     />
                 </Stack>
 
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 3 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, mb: 3, p: 1.5, bgcolor: alpha('#f0f4f8', 0.5), borderRadius: 2 }}>
                     <Box>
-                        <Typography variant="caption" color="text.secondary">{t('ticket.netWeight')}</Typography>
-                        <Typography variant="body1" fontWeight={700}>{ticket.netWeight.toLocaleString()} kg</Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">{t('ticket.netWeight')}</Typography>
+                        <Typography variant="body2" fontWeight={700}>{(ticket.netWeight || 0).toLocaleString()} kg</Typography>
+                    </Box>
+                    <Box>
+                        <Typography variant="caption" color="text.secondary" display="block">{t('ticket.remainingWeight')}</Typography>
+                        <Typography variant="body2" fontWeight={700} color="primary.main">{(ticket.remainingWeight || 0).toLocaleString()} kg</Typography>
                     </Box>
                     <Box sx={{ textAlign: 'right' }}>
-                        <Typography variant="caption" color="text.secondary">{t('ticket.totalPrice')}</Typography>
-                        <Typography variant="body1" fontWeight={700} color="success.main">
-                            ฿{ticket.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <Typography variant="caption" color="text.secondary" display="block">{t('ticket.totalPrice')}</Typography>
+                        <Typography variant="body2" fontWeight={800} color="success.main">
+                            ฿{(ticket.totalPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Typography>
                     </Box>
                 </Box>
@@ -103,21 +119,30 @@ export default function TicketCard({ ticket, onApprove, onEdit, onDelete }: Tick
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Stack direction="row" spacing={0.5}>
                         {ticket.status !== 'approved' && (
-                            <IconButton size="small" onClick={() => onEdit(ticket)} sx={{ color: 'text.secondary' }}>
+                            <IconButton size="small" onClick={() => onEdit(ticket)} sx={{ color: 'text.secondary', bgcolor: alpha('#94a3b8', 0.1), '&:hover': { bgcolor: alpha('#94a3b8', 0.2) } }}>
                                 <EditIcon fontSize="small" />
                             </IconButton>
                         )}
-                        <IconButton size="small" onClick={() => onDelete(ticket.id)} sx={{ color: 'error.light' }}>
+                        <IconButton size="small" onClick={() => onDelete(ticket.id)} sx={{ color: 'error.light', bgcolor: alpha('#ef4444', 0.1), '&:hover': { bgcolor: alpha('#ef4444', 0.2) } }}>
                             <DeleteIcon fontSize="small" />
                         </IconButton>
                     </Stack>
 
                     {ticket.status === 'pending' && (
                         <Button
-                            size="small"
+                            size="medium"
                             variant="contained"
                             onClick={() => onApprove(ticket.id)}
-                            sx={{ borderRadius: 2, px: 2 }}
+                            startIcon={<ShippingIcon />}
+                            sx={{
+                                borderRadius: 3,
+                                px: 3,
+                                fontWeight: 800,
+                                textTransform: 'none',
+                                boxShadow: '0 4px 12px rgba(26, 51, 126, 0.2)',
+                                bgcolor: '#1a337e',
+                                '&:hover': { bgcolor: '#10265a' }
+                            }}
                         >
                             {t('ticket.action.approve')}
                         </Button>
