@@ -43,6 +43,7 @@ export interface Ticket {
   remainingWeight: number;
   unitPrice: number;
   totalPrice: number;
+  poNumber?: string;
   status: TicketStatus;
   remarks?: string;
   createdAt: string;

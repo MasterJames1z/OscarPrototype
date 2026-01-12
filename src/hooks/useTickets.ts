@@ -102,6 +102,7 @@ export function useTickets() {
             remainingWeight,
             unitPrice,
             totalPrice,
+            poNumber: paymentType === 'po' ? `PO${dayjs().format('YYMMDD')}${Math.floor(Math.random() * 1000)}` : undefined,
             status: 'pending',
             remarks: '-',
             createdAt: new Date().toISOString(),

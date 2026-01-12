@@ -77,14 +77,14 @@ export default function TicketForm({ open, onClose, onSubmit, editingTicket, all
         return { net, deducted, remaining, total };
     }, [formData.weightIn, formData.weightOut, formData.impurity, formData.moisture, formData.unitPrice]);
 
-    const handleSubmit = () => {
+    const handleSubmit = (statusOverride?: 'approved' | 'pending') => {
         onSubmit({
             ...formData,
             netWeight: calculations.net,
             deductedWeight: calculations.deducted,
             remainingWeight: calculations.remaining,
             totalPrice: calculations.total,
-            status: editingTicket?.status || 'pending' // Preserve status if editing, or set to pending for new
+            status: statusOverride || editingTicket?.status || 'pending'
         });
         onClose();
     };
@@ -109,7 +109,12 @@ export default function TicketForm({ open, onClose, onSubmit, editingTicket, all
                         บัตรชั่งน้ำหนัก (Weigh Ticket)
                     </Typography>
                     <Typography variant="body2" color="#64748b" fontWeight={600}>
-                        เลขที่ตั๋ว: <span style={{ color: '#3b82f6' }}>{formData.ticketNumber}</span>
+                        เลขที่ตั๋ว: <span style={{ color: '#3b82f6', marginRight: '16px' }}>{formData.ticketNumber}</span>
+                        {formData.poNumber && (
+                            <>
+                                หมายเลข PO: <span style={{ color: '#ed6c02' }}>{formData.poNumber}</span>
+                            </>
+                        )}
                     </Typography>
                 </Box>
 
@@ -323,10 +328,18 @@ export default function TicketForm({ open, onClose, onSubmit, editingTicket, all
                             <Button
                                 variant="contained"
                                 size="large"
-                                onClick={handleSubmit}
-                                sx={{ borderRadius: 2, px: 4, fontWeight: 700, bgcolor: '#2563eb' }}
+                                onClick={() => handleSubmit()}
+                                sx={{ borderRadius: 2, px: 3, fontWeight: 700, bgcolor: '#64748b', '&:hover': { bgcolor: '#475569' } }}
                             >
                                 {t('ticket.btnSave')}
+                            </Button>
+                            <Button
+                                variant="contained"
+                                size="large"
+                                onClick={() => handleSubmit('approved')}
+                                sx={{ borderRadius: 2, px: 3, fontWeight: 700, bgcolor: '#1a337e', '&:hover': { bgcolor: '#10265a' } }}
+                            >
+                                Save & Approve
                             </Button>
                         </Stack>
                     </Box>

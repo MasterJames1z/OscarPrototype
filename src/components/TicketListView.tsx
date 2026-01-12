@@ -1,4 +1,28 @@
-import { Box, Tabs, Tab, Typography, Stack, alpha } from '@mui/material';
+import {
+    Box,
+    Tabs,
+    Tab,
+    Typography,
+    Stack,
+    alpha,
+    IconButton,
+    TextField,
+    InputAdornment,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Chip,
+} from '@mui/material';
+import {
+    ViewModule as CardViewIcon,
+    ViewList as ListViewIcon,
+    Search as SearchIcon,
+    EditOutlined as EditIcon,
+    DeleteOutline as DeleteIcon,
+} from '@mui/icons-material';
 import { useState } from 'react';
 import type { Ticket } from '../types';
 import TicketCard from './TicketCard';
@@ -12,38 +36,207 @@ interface TicketListViewProps {
 }
 
 type TabValue = 'all' | 'pending' | 'approved';
+type ViewMode = 'card' | 'list';
 
-export default function TicketListView({ tickets, onApprove, onEdit, onDelete }: TicketListViewProps) {
+export default function TicketListView({ tickets, onEdit, onDelete }: TicketListViewProps) {
     const { t } = useApp();
     const [tab, setTab] = useState<TabValue>('all');
+    const [viewMode, setViewMode] = useState<ViewMode>('card');
+    const [searchQuery, setSearchQuery] = useState('');
 
-    const filteredTickets = tickets.filter(t => {
-        if (tab === 'all') return true;
-        return t.status === tab;
+    const filteredTickets = tickets.filter(ticket => {
+        const matchesTab = tab === 'all' || ticket.status === tab;
+        const searchStr = `${ticket.ticketNumber} ${ticket.resourceName} ${ticket.sellerName} ${ticket.licensePlate} ${ticket.poNumber || ''}`.toLowerCase();
+        const matchesSearch = searchStr.includes(searchQuery.toLowerCase());
+        return matchesTab && matchesSearch;
     });
+
+    const getStatusConfig = (status: Ticket['status']) => {
+        switch (status) {
+            case 'approved': return { color: '#2e7d32', label: t('ticket.status.approved') };
+            case 'pending': return { color: '#ed6c02', label: t('ticket.status.pending') };
+            default: return { color: '#94a3b8', label: t('ticket.status.draft') };
+        }
+    };
+
+    const renderTableView = () => (
+        <TableContainer sx={{ height: '100%' }}>
+            <Table stickyHeader size="small">
+                <TableHead>
+                    <TableRow>
+                        <TableCell sx={{ fontWeight: 800, bgcolor: 'background.paper' }}>เลขที่ตั๋ว / วันที่</TableCell>
+                        <TableCell sx={{ fontWeight: 800, bgcolor: 'background.paper' }}>สินค้า / ที่มา</TableCell>
+                        <TableCell sx={{ fontWeight: 800, bgcolor: 'background.paper' }}>ผู้ขาย / ทะเบียน</TableCell>
+                        <TableCell sx={{ fontWeight: 800, bgcolor: 'background.paper', textAlign: 'right' }}>น้ำหนักสุทธิ</TableCell>
+                        <TableCell sx={{ fontWeight: 800, bgcolor: 'background.paper', textAlign: 'right' }}>ราคาต่อหน่วย</TableCell>
+                        <TableCell sx={{ fontWeight: 800, bgcolor: 'background.paper', textAlign: 'right' }}>จำนวนเงิน</TableCell>
+                        <TableCell sx={{ fontWeight: 800, bgcolor: 'background.paper', textAlign: 'center' }}>สถานะ</TableCell>
+                        <TableCell sx={{ fontWeight: 800, bgcolor: 'background.paper', textAlign: 'center' }}>Action</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {filteredTickets.map((ticket) => {
+                        const config = getStatusConfig(ticket.status);
+                        return (
+                            <TableRow key={ticket.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                                <TableCell>
+                                    <Typography variant="body2" fontWeight={700} color="primary.main">{ticket.ticketNumber}</Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {new Date(ticket.createdAt).toLocaleDateString()} {new Date(ticket.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </Typography>
+                                </TableCell>
+                                <TableCell>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Typography variant="body2" fontWeight={700}>{ticket.resourceName}</Typography>
+                                        <Chip
+                                            label={ticket.type?.toUpperCase()}
+                                            size="small"
+                                            sx={{ height: 16, fontSize: '0.6rem', fontWeight: 900, borderRadius: 1, bgcolor: alpha(ticket.type === 'auto' ? '#1a337e' : '#94a3b8', 0.1), color: ticket.type === 'auto' ? '#1a337e' : '#64748b' }}
+                                        />
+                                    </Box>
+                                    {ticket.poNumber && <Typography variant="caption" color="warning.main" fontWeight={700}>PO: {ticket.poNumber}</Typography>}
+                                </TableCell>
+                                <TableCell>
+                                    <Typography variant="body2">{ticket.sellerName || 'N/A'}</Typography>
+                                    <Typography variant="caption" color="text.secondary">{ticket.licensePlate || 'N/A'}</Typography>
+                                </TableCell>
+                                <TableCell sx={{ textAlign: 'right', fontWeight: 700 }}>
+                                    {(ticket.netWeight || 0).toLocaleString()} kg
+                                </TableCell>
+                                <TableCell sx={{ textAlign: 'right', fontWeight: 700, color: 'primary.main' }}>
+                                    ฿{(ticket.unitPrice || 0).toLocaleString()}
+                                </TableCell>
+                                <TableCell sx={{ textAlign: 'right', fontWeight: 800, color: 'success.main' }}>
+                                    ฿{(ticket.totalPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell sx={{ textAlign: 'center' }}>
+                                    <Chip
+                                        label={config.label}
+                                        size="small"
+                                        sx={{ bgcolor: alpha(config.color, 0.1), color: config.color, fontWeight: 700, borderRadius: 1.5 }}
+                                    />
+                                </TableCell>
+                                <TableCell sx={{ textAlign: 'center' }}>
+                                    <Stack direction="row" spacing={0.5} justifyContent="center">
+                                        {ticket.status !== 'approved' && (
+                                            <IconButton size="small" onClick={() => onEdit(ticket)} sx={{ color: 'text.secondary' }}>
+                                                <EditIcon fontSize="small" />
+                                            </IconButton>
+                                        )}
+                                        {ticket.type !== 'auto' && ticket.status !== 'approved' && (
+                                            <IconButton size="small" onClick={() => onDelete(ticket.id)} sx={{ color: 'error.light' }}>
+                                                <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                        )}
+                                    </Stack>
+                                </TableCell>
+                            </TableRow>
+                        );
+                    })}
+                </TableBody>
+            </Table>
+        </TableContainer>
+    );
 
     return (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ px: 2, borderBottom: '1px solid', borderColor: alpha('#1a337e', 0.1), mb: 3 }}>
+            {/* Top View Selector Tabs */}
+            <Box sx={{ px: 2, borderBottom: '1px solid', borderColor: alpha('#1a337e', 0.1) }}>
                 <Tabs
-                    value={tab}
-                    onChange={(_, v) => setTab(v)}
+                    value={viewMode}
+                    onChange={(_, v) => setViewMode(v)}
                     sx={{
-                        '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' }
+                        '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0', bgcolor: '#1a337e' },
+                        '& .MuiTab-root': {
+                            minHeight: 48,
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            fontSize: '0.875rem',
+                            color: '#64748b',
+                            '&.Mui-selected': { color: '#1a337e' },
+                            flexDirection: 'row',
+                            gap: 1
+                        }
                     }}
                 >
-                    <Tab label={t('status.all')} value="all" sx={{ fontWeight: 700, textTransform: 'none' }} />
-                    <Tab label={t('ticket.status.pending')} value="pending" sx={{ fontWeight: 700, textTransform: 'none' }} />
-                    <Tab label={t('ticket.status.approved')} value="approved" sx={{ fontWeight: 700, textTransform: 'none' }} />
+                    <Tab icon={<ListViewIcon sx={{ fontSize: 20 }} />} label="List View" value="list" />
+                    <Tab icon={<CardViewIcon sx={{ fontSize: 20 }} />} label="Card View" value="card" />
                 </Tabs>
             </Box>
 
-            <Box sx={{ flexGrow: 1, overflowY: 'auto', px: 2, pb: 4 }}>
+            {/* Search and Filters Row */}
+            <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: alpha('#1a337e', 0.05) }}>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
+                    <TextField
+                        fullWidth
+                        placeholder="ค้นหาตามชื่อสินค้า, ทะเบียน, ผู้ขาย..."
+                        size="small"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon sx={{ color: '#94a3b8', fontSize: 20 }} />
+                                </InputAdornment>
+                            ),
+                        }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: 3,
+                                bgcolor: '#fff',
+                                transition: 'all 0.2s',
+                                '&:hover': { bgcolor: '#f8fafc' },
+                                '& fieldset': { borderColor: '#e2e8f0' }
+                            }
+                        }}
+                    />
+
+                    <Stack
+                        direction="row"
+                        sx={{
+                            bgcolor: '#f1f5f9',
+                            p: 0.5,
+                            borderRadius: 3,
+                            width: { xs: '100%', md: 'auto' },
+                            justifyContent: 'center'
+                        }}
+                    >
+                        {(['all', 'pending', 'approved'] as TabValue[]).map((val) => (
+                            <Box
+                                key={val}
+                                onClick={() => setTab(val)}
+                                sx={{
+                                    px: 3,
+                                    py: 1,
+                                    borderRadius: 2.5,
+                                    cursor: 'pointer',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 700,
+                                    textAlign: 'center',
+                                    transition: 'all 0.2s',
+                                    bgcolor: tab === val ? '#1a337e' : 'transparent',
+                                    color: tab === val ? '#fff' : '#64748b',
+                                    '&:hover': {
+                                        bgcolor: tab === val ? '#1a337e' : alpha('#94a3b8', 0.1)
+                                    }
+                                }}
+                            >
+                                {val === 'all' ? t('status.all') :
+                                    val === 'pending' ? t('ticket.status.pending') :
+                                        t('ticket.status.approved')}
+                            </Box>
+                        ))}
+                    </Stack>
+                </Stack>
+            </Box>
+
+            {/* Content Area */}
+            <Box sx={{ flexGrow: 1, overflowY: 'auto', p: viewMode === 'card' ? { xs: 2, md: 3 } : 0 }}>
                 {filteredTickets.length === 0 ? (
                     <Stack alignItems="center" justifyContent="center" sx={{ py: 10, opacity: 0.5 }}>
                         <Typography variant="h6">{t('nav.help') || 'No data found'}</Typography>
                     </Stack>
-                ) : (
+                ) : viewMode === 'card' ? (
                     <Box sx={{
                         display: 'grid',
                         gridTemplateColumns: {
@@ -57,12 +250,13 @@ export default function TicketListView({ tickets, onApprove, onEdit, onDelete }:
                             <TicketCard
                                 key={ticket.id}
                                 ticket={ticket}
-                                onApprove={onApprove}
                                 onEdit={onEdit}
                                 onDelete={onDelete}
                             />
                         ))}
                     </Box>
+                ) : (
+                    renderTableView()
                 )}
             </Box>
         </Box>
