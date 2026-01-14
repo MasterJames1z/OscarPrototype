@@ -14,6 +14,7 @@ import {
     Tab,
     useTheme,
 } from '@mui/material';
+import dayjs from 'dayjs';
 import {
     DeleteOutline as DeleteIcon,
     EditOutlined as EditIcon,
@@ -40,17 +41,17 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
     const [statusFilter, setStatusFilter] = useState<CardStatus | 'all'>('all');
 
     const filteredCards = cards.filter(c => {
-        const matchesSearch = c.resourceName.toLowerCase().includes(search.toLowerCase());
-        const currentStatus = getCardStatus(c.startDate, c.endDate);
+        const matchesSearch = (c.ProductName || '').toLowerCase().includes(search.toLowerCase());
+        const currentStatus = getCardStatus(c.EffectiveDate, c.ToDate);
         const matchesStatus = statusFilter === 'all' || currentStatus === statusFilter;
         return matchesSearch && matchesStatus;
     });
 
     const checkOverlap = (card: PriceCard) => {
         return cards.some(other =>
-            other.id !== card.id &&
-            other.resourceName === card.resourceName &&
-            doRangesOverlap(card.startDate, card.endDate, other.startDate, other.endDate)
+            other.PriceID !== card.PriceID &&
+            other.ProductID === card.ProductID &&
+            doRangesOverlap(card.EffectiveDate, card.ToDate || card.EffectiveDate, other.EffectiveDate, other.ToDate || other.EffectiveDate)
         );
     };
 
@@ -123,7 +124,7 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 3 }}>
                 {filteredCards.map(card => {
                     const hasOverlap = checkOverlap(card);
-                    const currentStatus = getCardStatus(card.startDate, card.endDate);
+                    const currentStatus = getCardStatus(card.EffectiveDate, card.ToDate);
 
                     let statusColor = '#2e7d32'; // Green for Active
                     if (currentStatus === 'expired') statusColor = '#d32f2f'; // Red for Expired
@@ -131,7 +132,7 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
 
                     return (
                         <Card
-                            key={card.id}
+                            key={card.PriceID}
                             elevation={0}
                             sx={{
                                 position: 'relative',
@@ -160,7 +161,7 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
                                     </Box>
                                     <Box sx={{ flexGrow: 1 }}>
                                         <Typography variant="subtitle1" sx={{ color: 'primary.main', mb: 0.5 }}>
-                                            {card.resourceName}
+                                            {card.ProductName}
                                         </Typography>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <Chip
@@ -176,7 +177,7 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
                                                 }}
                                             />
                                             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                {t('card.valid')}: {card.startDate} ➔ {card.endDate}
+                                                {t('card.valid')}: {dayjs(card.EffectiveDate).format('YYYY-MM-DD')} ➔ {card.ToDate ? dayjs(card.ToDate).format('YYYY-MM-DD') : dayjs(card.EffectiveDate).format('YYYY-MM-DD')}
                                             </Typography>
                                         </Box>
                                     </Box>
@@ -186,29 +187,26 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
                                     <Box>
                                         <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>{t('card.unitPrice')}</Typography>
                                         <Typography variant="h5" sx={{ color: 'primary.main', fontWeight: 800 }}>
-                                            ฿{card.unitPrice.toLocaleString()}
+                                            ฿{card.UnitPrice.toLocaleString()}
                                         </Typography>
                                     </Box>
 
                                     <Box sx={{ textAlign: 'right' }}>
-                                        {currentStatus === 'active' && (
+                                        {currentStatus === 'active' && card.ToDate && (
                                             <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontWeight: 700, mb: 0.5 }}>
-                                                {calculateDays(new Date().toISOString(), card.endDate)} {t('card.daysLeft') || 'days left'}
+                                                {calculateDays(new Date().toISOString(), card.ToDate)} {t('card.daysLeft') || 'days left'}
                                             </Typography>
                                         )}
-                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                            by {card.createdBy}
-                                        </Typography>
                                     </Box>
 
                                     <Stack direction="row" spacing={0.5}>
                                         <IconButton size="small" onClick={() => onEdit(card)} sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.05) } }}>
                                             <EditIcon fontSize="small" />
                                         </IconButton>
-                                        <IconButton size="small" onClick={() => onDuplicate(card.id)} sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main', bgcolor: alpha('#1a337e', 0.05) } }}>
+                                        <IconButton size="small" onClick={() => onDuplicate(card.PriceID.toString())} sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main', bgcolor: alpha('#1a337e', 0.05) } }}>
                                             <ContentCopyIcon fontSize="small" />
                                         </IconButton>
-                                        <IconButton size="small" onClick={() => onDelete(card.id)} sx={{ color: 'error.light', '&:hover': { color: 'error.main', bgcolor: alpha('#ef4444', 0.05) } }}>
+                                        <IconButton size="small" onClick={() => onDelete(card.PriceID.toString())} sx={{ color: 'error.light', '&:hover': { color: 'error.main', bgcolor: alpha('#ef4444', 0.05) } }}>
                                             <DeleteIcon fontSize="small" />
                                         </IconButton>
                                     </Stack>

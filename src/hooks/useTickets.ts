@@ -1,125 +1,120 @@
 import { useState, useCallback, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import dayjs from 'dayjs';
 import type { Ticket } from '../types';
 
-const STORAGE_KEY = 'oscar_tickets';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 export function useTickets() {
     const [tickets, setTickets] = useState<Ticket[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try {
-                setTickets(JSON.parse(saved));
-            } catch (e) {
-                console.error('Failed to load tickets', e);
-            }
+    const fetchTickets = useCallback(async () => {
+        setLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/tickets`);
+            if (!response.ok) throw new Error('Failed to fetch tickets');
+            const data = await response.json();
+
+            // Map DB fields to Frontend interface
+            const mappedTickets: Ticket[] = data.map((t: any) => ({
+                id: t.TicketID.toString(),
+                ticketNumber: t.TicketNo,
+                type: 'manual', // Default or logical check
+                paymentType: t.PaymentType?.toLowerCase() || 'cash',
+                resourceName: t.ProductName || 'N/A',
+                sellerName: t.VendorName || 'N/A',
+                licensePlate: t.LicensePlate || 'N/A',
+                weightIn: t.WeightIn,
+                weightOut: t.WeightOut,
+                netWeight: t.NetWeight,
+                entryDateTime: t.TimeIn,
+                exitDateTime: t.TimeOut,
+                impurity: 0, // Calculated or DB field
+                moisture: 0, // Calculated or DB field
+                deductedWeight: 0,
+                remainingWeight: t.NetWeight,
+                unitPrice: t.UnitPrice,
+                totalPrice: t.TotalPrice,
+                poNumber: t.TicketNo.startsWith('PO') ? t.TicketNo : undefined, // Mapping example
+                status: t.ProcessStatus?.toLowerCase() || 'pending',
+                remarks: t.Remarks,
+                createdAt: t.TimeIn,
+                createdBy: t.CreatedBy,
+            }));
+
+            setTickets(mappedTickets);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
         }
     }, []);
 
-    const saveToStorage = (newTickets: Ticket[]) => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newTickets));
-        setTickets(newTickets);
-    };
+    useEffect(() => {
+        fetchTickets();
+    }, [fetchTickets]);
 
-    const addTicket = useCallback((ticket: Omit<Ticket, 'id' | 'createdAt'>) => {
-        const newTicket: Ticket = {
-            ...ticket,
-            id: uuidv4(),
-            createdAt: new Date().toISOString(),
-        };
-        const updated = [newTicket, ...tickets];
-        saveToStorage(updated);
-        return newTicket;
-    }, [tickets]);
+    const addTicket = useCallback(async (ticket: Omit<Ticket, 'id' | 'createdAt'>) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/tickets`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    TicketNo: ticket.ticketNumber,
+                    VehicleID: ticket.VehicleID,
+                    VendorID: ticket.VendorID,
+                    ProductID: ticket.ProductID,
+                    PaymentType: ticket.paymentType,
+                    WeightIn: ticket.weightIn,
+                    WeightOut: ticket.weightOut,
+                    UnitPrice: ticket.unitPrice,
+                    CreatedBy: ticket.createdBy,
+                    Remarks: ticket.remarks
+                }),
+            });
+            if (!response.ok) throw new Error('Failed to create ticket');
+            await fetchTickets();
+        } catch (err: any) {
+            setError(err.message);
+        }
+    }, [fetchTickets]);
 
-    const updateTicket = useCallback((id: string, updates: Partial<Ticket>) => {
-        const updated = tickets.map(t => t.id === id ? { ...t, ...updates } : t);
-        saveToStorage(updated);
-    }, [tickets]);
+    const updateTicket = useCallback(async (_id: string, updates: Partial<Ticket>) => {
+        // Implementation for general update if needed
+        console.log('Update logic needed for', _id, updates);
+    }, []);
 
-    const approveTicket = useCallback((id: string) => {
-        updateTicket(id, { status: 'approved' });
-    }, [updateTicket]);
+    const approveTicket = useCallback(async (id: string) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/tickets/${id}/approve`, {
+                method: 'PATCH',
+            });
+            if (!response.ok) throw new Error('Failed to approve ticket');
+            await fetchTickets();
+        } catch (err: any) {
+            setError(err.message);
+        }
+    }, [fetchTickets]);
 
-    const deleteTicket = useCallback((id: string) => {
-        const updated = tickets.filter(t => t.id !== id);
-        saveToStorage(updated);
-    }, [tickets]);
+    const deleteTicket = useCallback(async (_id: string) => {
+        // Not implemented in backend yet as per safety rules mentioned before
+        console.warn('Delete not implemented on server yet');
+    }, []);
 
-    const mockFetchWeighbridge = useCallback((getPrice?: (resource: string) => number) => {
-        const resources = [
-            'Rubber Wood - Grade A',
-            'Rubber Wood - Grade B',
-            'Rubber Wood - Grade C',
-            'Eucalyptus',
-            'Acacia',
-        ];
-        const sellers = ['บริษัท ภัทรพาราวูด ทุ่งใหญ่ จำกัด', 'นางวิลัยวรรณ ไกรนรา', 'นายสมชาย รักสงบ'];
-        const plates = ['82-3572 นศ', '82-2838 นศ', '70-1234 กทม'];
-        const vehicles = ['รถสิบล้อพ่วง', 'รถหกล้อ', 'รถหัวลาก'];
-
-        const randomResource = resources[Math.floor(Math.random() * resources.length)];
-        const randomSeller = sellers[Math.floor(Math.random() * sellers.length)];
-        const randomPlate = plates[Math.floor(Math.random() * plates.length)];
-        const randomVehicle = vehicles[Math.floor(Math.random() * vehicles.length)];
-        const paymentType = Math.random() > 0.5 ? 'cash' : 'po';
-
-        const weightIn = 15000 + Math.floor(Math.random() * 35000);
-        const weightOut = 5000 + Math.floor(Math.random() * 10000);
-        const netWeight = weightIn - weightOut;
-
-        const entryDate = dayjs().subtract(30, 'minute');
-        const exitDate = dayjs();
-
-        const impurity = Math.floor(Math.random() * 2); // 0 or 1%
-        const moisture = Math.floor(Math.random() * 5); // 0-4%
-        const deductedWeight = Math.floor(netWeight * (impurity + moisture) / 100);
-        const remainingWeight = netWeight - deductedWeight;
-
-        const unitPrice = getPrice ? getPrice(randomResource) : (1.1 + Math.random() * 1.5);
-        const totalPrice = (remainingWeight) * unitPrice;
-
-        const newTicket: Ticket = {
-            id: uuidv4(),
-            ticketNumber: `00000${Math.floor(25000 + Math.random() * 5000)}`,
-            type: 'auto',
-            paymentType,
-            resourceName: randomResource,
-            sellerName: randomSeller,
-            licensePlate: randomPlate,
-            vehicleType: randomVehicle,
-            weightIn,
-            weightOut,
-            netWeight,
-            entryDateTime: entryDate.format('DD/MM/YYYY HH:mm:ss'),
-            exitDateTime: exitDate.format('DD/MM/YYYY HH:mm:ss'),
-            impurity,
-            moisture,
-            deductedWeight,
-            remainingWeight,
-            unitPrice,
-            totalPrice,
-            poNumber: paymentType === 'po' ? `PO${dayjs().format('YYMMDD')}${Math.floor(Math.random() * 1000)}` : undefined,
-            status: 'pending',
-            remarks: '-',
-            createdAt: new Date().toISOString(),
-            createdBy: 'Admin_System',
-        };
-
-        const updated = [newTicket, ...tickets];
-        saveToStorage(updated);
-        return newTicket;
-    }, [tickets]);
+    const mockFetchWeighbridge = useCallback(async () => {
+        // This could call a "sync" endpoint or just re-fetch
+        await fetchTickets();
+    }, [fetchTickets]);
 
     return {
         tickets,
+        loading,
+        error,
         addTicket,
         updateTicket,
         approveTicket,
         deleteTicket,
         mockFetchWeighbridge,
+        refresh: fetchTickets,
     };
 }

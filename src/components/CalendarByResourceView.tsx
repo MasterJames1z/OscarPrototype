@@ -153,9 +153,9 @@ export default function CalendarByResourceView({
                     if (newEnd.isBefore(newStart)) newEnd = newStart;
                 }
 
-                onUpdate(interaction.card.id, {
-                    startDate: newStart.format('YYYY-MM-DD'),
-                    endDate: newEnd.format('YYYY-MM-DD'),
+                onUpdate(interaction.card.PriceID.toString(), {
+                    EffectiveDate: newStart.format('YYYY-MM-DD'),
+                    ToDate: newEnd.format('YYYY-MM-DD'),
                 });
             }
 
@@ -179,26 +179,26 @@ export default function CalendarByResourceView({
             type,
             card,
             initialMouseX: e.clientX,
-            initialStart: dayjs(card.startDate).startOf('day'),
-            initialEnd: dayjs(card.endDate).startOf('day'),
+            initialStart: dayjs(card.EffectiveDate).startOf('day'),
+            initialEnd: dayjs(card.ToDate || card.EffectiveDate).startOf('day'),
         });
     };
 
     const processedResources = useMemo(() => {
         return allResources.map(resource => {
             const resourceCards = cards.filter(c =>
-                c.resourceName === resource &&
-                (dayjs(c.startDate).isBefore(timeRange.end) && dayjs(c.endDate).isAfter(timeRange.start))
+                c.ProductName === resource &&
+                (dayjs(c.EffectiveDate).isBefore(timeRange.end) && dayjs(c.ToDate || c.EffectiveDate).isAfter(timeRange.start))
             );
             const tracks: PriceCard[][] = [];
 
-            resourceCards.sort((a, b) => dayjs(a.startDate).diff(dayjs(b.startDate)));
+            resourceCards.sort((a, b) => dayjs(a.EffectiveDate).diff(dayjs(b.EffectiveDate)));
 
             resourceCards.forEach(card => {
                 let placed = false;
                 for (let i = 0; i < tracks.length; i++) {
                     const lastCardTrack = tracks[i][tracks[i].length - 1];
-                    if (dayjs(card.startDate).isAfter(dayjs(lastCardTrack.endDate))) {
+                    if (dayjs(card.EffectiveDate).isAfter(dayjs(lastCardTrack.ToDate || lastCardTrack.EffectiveDate))) {
                         tracks[i].push(card);
                         placed = true;
                         break;
@@ -215,11 +215,11 @@ export default function CalendarByResourceView({
         const viewEnd = timeRange.end.endOf('day');
         const totalDiff = viewEnd.clone().add(1, 'millisecond').diff(viewStart);
 
-        let cardStart = dayjs(card.startDate).startOf('day');
-        let cardEnd = dayjs(card.endDate).endOf('day');
+        let cardStart = dayjs(card.EffectiveDate).startOf('day');
+        let cardEnd = dayjs(card.ToDate || card.EffectiveDate).endOf('day');
 
         // Apply preview if this is the interaction target
-        if (interaction?.card.id === card.id && previewSnapDays !== 0) {
+        if (interaction?.card.PriceID === card.PriceID && previewSnapDays !== 0) {
             if (interaction.type === 'drag') {
                 cardStart = cardStart.add(previewSnapDays, 'day');
                 cardEnd = cardEnd.add(previewSnapDays, 'day');
@@ -240,7 +240,7 @@ export default function CalendarByResourceView({
 
         let bgColor = COLORS.cardBg;
         let borderColor = COLORS.cardBorder;
-        if (dayjs(card.endDate).isBefore(getToday(), 'day')) {
+        if (dayjs(card.ToDate || card.EffectiveDate).isBefore(getToday(), 'day')) {
             bgColor = isDark ? '#334155' : '#94a3b8';
             borderColor = isDark ? '#475569' : '#cbd5e1';
         }
@@ -317,10 +317,10 @@ export default function CalendarByResourceView({
                                         </Box>
                                         {tracks.map((track, trackIndex) => track.map(card => {
                                             const style = getCardStyle(card);
-                                            const isInteractionTarget = interaction?.card.id === card.id;
+                                            const isInteractionTarget = interaction?.card.PriceID === card.PriceID;
 
                                             return (
-                                                <Tooltip key={card.id} title={`${card.unitPrice.toLocaleString()} THB (${card.startDate} - ${card.endDate})`} arrow>
+                                                <Tooltip key={card.PriceID} title={`${card.UnitPrice.toLocaleString()} THB (${dayjs(card.EffectiveDate).format('YYYY-MM-DD')} - ${card.ToDate ? dayjs(card.ToDate).format('YYYY-MM-DD') : dayjs(card.EffectiveDate).format('YYYY-MM-DD')})`} arrow>
                                                     <Box
                                                         onMouseDown={(e) => handleInteractionStart(e, 'drag', card)}
                                                         sx={{
@@ -393,7 +393,7 @@ export default function CalendarByResourceView({
                                                                 pointerEvents: 'auto'
                                                             }}
                                                         >
-                                                            ฿{card.unitPrice.toLocaleString()}
+                                                            ฿{card.UnitPrice.toLocaleString()}
                                                         </Box>
                                                     </Box>
                                                 </Tooltip>

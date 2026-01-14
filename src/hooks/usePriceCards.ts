@@ -1,134 +1,99 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { PriceCard } from '../types';
-import { v4 as uuidv4 } from 'uuid';
-import { getCardStatus, doRangesOverlap } from '../utils/date.ts';
+import { getCardStatus } from '../utils/date.ts';
 import dayjs from 'dayjs';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 
-const STORAGE_KEY = 'oscar_price_cards';
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 
-const MOCK_RESOURCES = [
-    'Rubber Wood - Grade A',
-    'Rubber Wood - Grade B',
-    'Rubber Wood - Grade C',
-    'Eucalyptus',
-    'Acacia',
-];
-
-const INITIAL_CARDS: PriceCard[] = [
-    {
-        id: '1',
-        resourceName: 'Rubber Wood - Grade A',
-        startDate: '2026-01-01',
-        endDate: '2026-01-15',
-        unitPrice: 2500,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        createdBy: 'Oscar User',
-    },
-    {
-        id: '2',
-        resourceName: 'Rubber Wood - Grade B',
-        startDate: '2026-01-10',
-        endDate: '2026-01-20',
-        unitPrice: 2200,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        createdBy: 'Oscar User',
-    },
-];
+const API_BASE_URL = 'http://localhost:5000/api';
 
 export function usePriceCards() {
-    const [cards, setCards] = useState<PriceCard[]>(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) return JSON.parse(saved);
-        return INITIAL_CARDS;
-    });
+    const [cards, setCards] = useState<PriceCard[]>([]);
+    const [loading, setLoading] = useState(false);
 
-    const saveCards = useCallback((newCards: PriceCard[]) => {
-        setCards(newCards);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newCards));
+    const fetchPrices = useCallback(async () => {
+        setLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/product-prices`);
+            if (!response.ok) throw new Error('Failed to fetch prices');
+            const data = await response.json();
+
+            const mappedCards: PriceCard[] = data.map((item: any) => ({
+                PriceID: item.PriceID,
+                ProductID: item.ProductID,
+                ProductName: item.ProductName,
+                EffectiveDate: item.EffectiveDate,
+                ToDate: item.ToDate || item.EffectiveDate,
+                UnitPrice: item.UnitPrice,
+                status: getCardStatus(item.EffectiveDate, item.ToDate || item.EffectiveDate),
+                createdAt: item.createdAt
+            }));
+
+            setCards(mappedCards);
+        } catch (err) {
+            console.error('Failed to fetch prices', err);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    const addCard = useCallback((cardData: Omit<PriceCard, 'id' | 'createdAt' | 'status' | 'createdBy'>) => {
-        const hasOverlap = cards.some(c =>
-            c.resourceName === cardData.resourceName &&
-            doRangesOverlap(c.startDate, c.endDate, cardData.startDate, cardData.endDate)
-        );
+    useEffect(() => {
+        fetchPrices();
+    }, [fetchPrices]);
 
-        if (hasOverlap) {
-            return false;
-        }
-
-        const newCard: PriceCard = {
-            ...cardData,
-            id: uuidv4(),
-            createdAt: new Date().toISOString(),
-            createdBy: 'Oscar User',
-            status: getCardStatus(cardData.startDate, cardData.endDate),
-        };
-        saveCards([newCard, ...cards]);
-        return true;
-    }, [cards, saveCards]);
-
-    const updateCard = useCallback((id: string, cardData: Omit<PriceCard, 'id' | 'createdAt' | 'status' | 'createdBy'>) => {
-        const hasOverlap = cards.some(c =>
-            c.id !== id &&
-            c.resourceName === cardData.resourceName &&
-            doRangesOverlap(c.startDate, c.endDate, cardData.startDate, cardData.endDate)
-        );
-
-        if (hasOverlap) {
-            return false;
-        }
-
-        const updatedCards = cards.map(c =>
-            c.id === id
-                ? { ...c, ...cardData, status: getCardStatus(cardData.startDate, cardData.endDate) }
-                : c
-        );
-        saveCards(updatedCards);
-        return true;
-    }, [cards, saveCards]);
-
-    const deleteCard = useCallback((id: string) => {
-        const filtered = cards.filter(c => c.id !== id);
-        saveCards(filtered);
-    }, [cards, saveCards]);
-
-    const duplicateCard = useCallback((id: string) => {
-        const cardToDup = cards.find(c => c.id === id);
-        if (cardToDup) {
-            const nextDay = dayjs(cardToDup.endDate).add(1, 'day').format('YYYY-MM-DD');
-            const newCard: PriceCard = {
-                ...cardToDup,
-                id: uuidv4(),
-                startDate: nextDay,
-                endDate: nextDay,
-                createdAt: new Date().toISOString(),
-                createdBy: 'Oscar User',
-                status: getCardStatus(nextDay, nextDay),
-            };
-            saveCards([newCard, ...cards]);
+    const addCard = useCallback(async (cardData: Omit<PriceCard, 'PriceID' | 'status' | 'createdAt'>) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/product-prices`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ProductID: cardData.ProductID,
+                    EffectiveDate: cardData.EffectiveDate,
+                    UnitPrice: cardData.UnitPrice
+                }),
+            });
+            if (!response.ok) throw new Error('Failed to set price');
+            await fetchPrices();
             return true;
+        } catch (err) {
+            console.error(err);
+            return false;
         }
-        return false;
-    }, [cards, saveCards]);
+    }, [fetchPrices]);
 
-    const getTodayPrice = useCallback((resourceName: string) => {
-        const activeCard = cards.find(c =>
-            c.resourceName === resourceName &&
-            getCardStatus(c.startDate, c.endDate) === 'active'
-        );
-        return activeCard?.unitPrice || 0;
+    const deleteCard = useCallback(async (id: number) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/product-prices/${id}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) throw new Error('Failed to delete price');
+            await fetchPrices();
+        } catch (err) {
+            console.error(err);
+        }
+    }, [fetchPrices]);
+
+    const getTodayPrice = useCallback((productIdentifier: string | number) => {
+        const today = dayjs().format('YYYY-MM-DD');
+        const activeCard = cards.find(c => {
+            const isMatch = typeof productIdentifier === 'number'
+                ? c.ProductID === productIdentifier
+                : c.ProductName === productIdentifier;
+
+            return isMatch && dayjs(today).isSameOrAfter(c.EffectiveDate) && (!c.ToDate || dayjs(today).isSameOrBefore(c.ToDate));
+        });
+        return activeCard?.UnitPrice || 0;
     }, [cards]);
 
     return {
         cards,
+        loading,
         addCard,
-        updateCard,
         deleteCard,
-        duplicateCard,
         getTodayPrice,
-        allResources: MOCK_RESOURCES,
+        refresh: fetchPrices
     };
 }

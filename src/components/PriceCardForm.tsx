@@ -10,43 +10,35 @@ import {
     DialogActions,
     Typography,
 } from '@mui/material';
-import { createFilterOptions } from '@mui/material/Autocomplete';
 import { useApp } from '../context/useApp';
-import type { PriceCard } from '../types';
-
-interface OptionType {
-    inputValue?: string;
-    resourceName: string;
-}
+import type { PriceCard, Product } from '../types';
 
 interface PriceCardFormProps {
     open: boolean;
     onClose: () => void;
-    onSubmit: (data: Omit<PriceCard, 'id' | 'createdAt' | 'status' | 'createdBy'>) => void;
+    onSubmit: (data: Omit<PriceCard, 'PriceID' | 'status' | 'createdAt'>) => void;
     editingCard?: PriceCard | null;
-    allResources: string[];
+    products: Product[];
 }
 
-const filter = createFilterOptions<OptionType>();
-
 const INITIAL_FORM_STATE = {
-    resourceName: '',
-    unitPrice: '',
-    startDate: '',
-    endDate: '',
+    ProductID: 0,
+    UnitPrice: '',
+    EffectiveDate: '',
+    ToDate: '',
 };
 
-export default function PriceCardForm({ open, onClose, onSubmit, editingCard, allResources }: PriceCardFormProps) {
+export default function PriceCardForm({ open, onClose, onSubmit, editingCard, products }: PriceCardFormProps) {
     const { t } = useApp();
     const [formData, setFormData] = useState(INITIAL_FORM_STATE);
 
     useEffect(() => {
         if (editingCard) {
             setFormData({
-                resourceName: editingCard.resourceName,
-                unitPrice: editingCard.unitPrice.toString(),
-                startDate: editingCard.startDate,
-                endDate: editingCard.endDate,
+                ProductID: editingCard.ProductID,
+                UnitPrice: editingCard.UnitPrice.toString(),
+                EffectiveDate: editingCard.EffectiveDate.split('T')[0],
+                ToDate: editingCard.ToDate ? editingCard.ToDate.split('T')[0] : '',
             });
         } else {
             setFormData(INITIAL_FORM_STATE);
@@ -61,14 +53,12 @@ export default function PriceCardForm({ open, onClose, onSubmit, editingCard, al
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSubmit({
-            resourceName: formData.resourceName,
-            unitPrice: Number(formData.unitPrice),
-            startDate: formData.startDate,
-            endDate: formData.endDate,
+            ProductID: formData.ProductID,
+            UnitPrice: Number(formData.UnitPrice),
+            EffectiveDate: formData.EffectiveDate,
+            ToDate: formData.ToDate || undefined,
         });
     };
-
-    const resourceOptions: OptionType[] = allResources.map(r => ({ resourceName: r }));
 
     return (
         <Dialog
@@ -97,43 +87,12 @@ export default function PriceCardForm({ open, onClose, onSubmit, editingCard, al
                 <DialogContent>
                     <Stack spacing={3} sx={{ mt: 1 }}>
                         <Autocomplete
-                            value={formData.resourceName ? { resourceName: formData.resourceName } : null}
+                            options={products}
+                            getOptionLabel={(option) => option.ProductName}
+                            value={products.find(p => p.ProductID === formData.ProductID) || null}
                             onChange={(_event, newValue) => {
-                                if (typeof newValue === 'string') {
-                                    setFormData({ ...formData, resourceName: newValue });
-                                } else if (newValue && newValue.inputValue) {
-                                    setFormData({ ...formData, resourceName: newValue.inputValue });
-                                } else {
-                                    setFormData({ ...formData, resourceName: newValue?.resourceName || '' });
-                                }
+                                setFormData({ ...formData, ProductID: newValue?.ProductID || 0 });
                             }}
-                            filterOptions={(options, params) => {
-                                const filtered = filter(options, params);
-                                const { inputValue } = params;
-                                const isExisting = options.some((option) => inputValue === option.resourceName);
-                                if (inputValue !== '' && !isExisting) {
-                                    filtered.push({
-                                        inputValue,
-                                        resourceName: `Add "${inputValue}"`,
-                                    });
-                                }
-                                return filtered;
-                            }}
-                            selectOnFocus
-                            clearOnBlur
-                            handleHomeEndKeys
-                            options={resourceOptions}
-                            getOptionLabel={(option) => {
-                                if (typeof option === 'string') return option;
-                                if (option.inputValue) return option.inputValue;
-                                return option.resourceName;
-                            }}
-                            renderOption={(props, option) => (
-                                <li {...props} key={option.resourceName}>
-                                    {option.resourceName}
-                                </li>
-                            )}
-                            freeSolo
                             renderInput={(params) => (
                                 <TextField
                                     {...params}
@@ -147,8 +106,8 @@ export default function PriceCardForm({ open, onClose, onSubmit, editingCard, al
                             label={t('form.price')}
                             type="number"
                             fullWidth
-                            value={formData.unitPrice}
-                            onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+                            value={formData.UnitPrice}
+                            onChange={(e) => setFormData({ ...formData, UnitPrice: e.target.value })}
                             required
                             InputLabelProps={{ shrink: true }}
                         />
@@ -157,8 +116,8 @@ export default function PriceCardForm({ open, onClose, onSubmit, editingCard, al
                                 label={t('form.start')}
                                 type="date"
                                 fullWidth
-                                value={formData.startDate}
-                                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                                value={formData.EffectiveDate}
+                                onChange={(e) => setFormData({ ...formData, EffectiveDate: e.target.value })}
                                 required
                                 InputLabelProps={{ shrink: true }}
                             />
@@ -166,10 +125,10 @@ export default function PriceCardForm({ open, onClose, onSubmit, editingCard, al
                                 label={t('form.end')}
                                 type="date"
                                 fullWidth
-                                value={formData.endDate}
-                                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                                required
+                                value={formData.ToDate}
+                                onChange={(e) => setFormData({ ...formData, ToDate: e.target.value })}
                                 InputLabelProps={{ shrink: true }}
+                                helperText="Leave empty for single day price"
                             />
                         </Stack>
                     </Stack>

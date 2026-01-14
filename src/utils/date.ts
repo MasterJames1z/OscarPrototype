@@ -29,10 +29,10 @@ export const calculateDays = (startDate: string, endDate: string) => {
     return end.diff(start, 'day') + 1;
 };
 
-export const getCardStatus = (startDate: string, endDate: string): 'active' | 'upcoming' | 'expired' => {
+export const getCardStatus = (startDate: string, endDate?: string | null): 'active' | 'upcoming' | 'expired' => {
     const today = dayjs().startOf('day');
     const start = dayjs(startDate).startOf('day');
-    const end = dayjs(endDate).startOf('day');
+    const end = endDate ? dayjs(endDate).startOf('day') : start;
 
     if (today.isBefore(start)) return 'upcoming';
     if (today.isAfter(end)) return 'expired';

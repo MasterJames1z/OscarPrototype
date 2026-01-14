@@ -1,4 +1,10 @@
 import { useState } from 'react';
+import dayjs from 'dayjs';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 import {
     Box,
     Typography,
@@ -20,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import type { PriceCard } from '../types';
 import { usePriceCards } from '../hooks/usePriceCards.ts';
+import { useMasters } from '../hooks/useMasters';
 import PriceCardForm from '../components/PriceCardForm';
 import CalendarByResourceView from '../components/CalendarByResourceView';
 import CardsView from '../components/CardsView';
@@ -52,7 +59,8 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export default function PostingPriceListPage() {
-    const { cards, addCard, updateCard, deleteCard, duplicateCard, allResources } = usePriceCards();
+    const { cards, addCard, deleteCard } = usePriceCards();
+    const { products } = useMasters();
     const { t } = useApp();
     const [activeTab, setActiveTab] = useState(0);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -63,26 +71,17 @@ export default function PostingPriceListPage() {
         setActiveTab(newValue);
     };
 
-    const handleFormSubmit = (data: Omit<PriceCard, 'id' | 'createdAt' | 'status' | 'createdBy'>) => {
-        if (editingCard) {
-            const success = updateCard(editingCard.id, data);
+    const handleFormSubmit = (data: Omit<PriceCard, 'PriceID' | 'status' | 'createdAt'>) => {
+        // Since the backend handles UPSERT with ProductID + EffectiveDate, we treat all as add/update
+        addCard(data).then((success: boolean) => {
             if (success) {
-                setSnackbar({ open: true, message: t('msg.updated'), severity: 'success' });
+                setSnackbar({ open: true, message: t('msg.saved') || 'Saved successfully', severity: 'success' });
                 setIsFormOpen(false);
                 setEditingCard(null);
             } else {
-                setSnackbar({ open: true, message: t('msg.overlapError') || 'Overlap detected! 1 price per day only.', severity: 'error' });
+                setSnackbar({ open: true, message: 'Failed to save price', severity: 'error' });
             }
-        } else {
-            const success = addCard(data);
-            if (success) {
-                setSnackbar({ open: true, message: t('msg.created'), severity: 'success' });
-                setIsFormOpen(false);
-                setEditingCard(null);
-            } else {
-                setSnackbar({ open: true, message: t('msg.overlapError') || 'Overlap detected! 1 price per day only.', severity: 'error' });
-            }
-        }
+        });
     };
 
     const handleEdit = (card: PriceCard) => {
@@ -95,28 +94,18 @@ export default function PostingPriceListPage() {
         setEditingCard(null);
     };
 
-    const handleDelete = (id: string) => {
-        deleteCard(id);
+    const handleDelete = (id: string | number) => {
+        deleteCard(Number(id));
         setSnackbar({ open: true, message: t('msg.deleted'), severity: 'info' });
     };
 
-    const handleDuplicate = (id: string) => {
-        duplicateCard(id);
-        setSnackbar({ open: true, message: t('msg.duplicated'), severity: 'success' });
+    const handleDuplicate = (_id: number) => {
+        // Not implemented in DB logic yet
+        console.warn('Duplicate not implemented');
     };
 
-    const handleQuickUpdate = (id: string, data: Partial<PriceCard>) => {
-        const card = cards.find(c => c.id === id);
-        if (!card) return;
-        const success = updateCard(id, {
-            resourceName: data.resourceName ?? card.resourceName,
-            unitPrice: data.unitPrice ?? card.unitPrice,
-            startDate: data.startDate ?? card.startDate,
-            endDate: data.endDate ?? card.endDate,
-        });
-        if (!success) {
-            setSnackbar({ open: true, message: t('msg.overlapError') || 'Overlap detected!', severity: 'error' });
-        }
+    const handleQuickUpdate = (_id: number, _data: Partial<PriceCard>) => {
+        console.warn('Quick update not implemented');
     };
 
     const openCreateForm = () => {
@@ -199,18 +188,18 @@ export default function PostingPriceListPage() {
                             <CalendarByResourceView
                                 cards={cards}
                                 onEdit={handleEdit}
-                                onDuplicate={handleDuplicate}
-                                onDelete={handleDelete}
-                                onUpdate={handleQuickUpdate}
-                                allResources={allResources}
+                                onDuplicate={handleDuplicate as any}
+                                onDelete={handleDelete as any}
+                                onUpdate={handleQuickUpdate as any}
+                                allResources={products.map(p => p.ProductName)}
                             />
                         </TabPanel>
                         <TabPanel value={activeTab} index={1} contentSx={{ p: 0, width: '100%', height: '100%' }}>
                             <CardsView
                                 cards={cards}
                                 onEdit={handleEdit}
-                                onDuplicate={handleDuplicate}
-                                onDelete={handleDelete}
+                                onDuplicate={handleDuplicate as any}
+                                onDelete={handleDelete as any}
                             />
                         </TabPanel>
                     </Box>
@@ -218,12 +207,12 @@ export default function PostingPriceListPage() {
             </Box>
 
             <PriceCardForm
-                key={editingCard?.id || 'new'}
+                key={editingCard?.PriceID || 'new'}
                 open={isFormOpen}
                 onClose={handleCancelEdit}
                 onSubmit={handleFormSubmit}
                 editingCard={editingCard}
-                allResources={allResources}
+                products={products}
             />
 
             <Tooltip title="Create New Price">

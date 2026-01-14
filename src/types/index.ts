@@ -2,14 +2,37 @@
 export type CardStatus = 'active' | 'upcoming' | 'expired';
 
 export interface PriceCard {
-  id: string;
-  resourceName: string;
-  startDate: string; // ISO format
-  endDate: string;   // ISO format
-  unitPrice: number;
-  status: CardStatus;
-  createdAt: string;
-  createdBy: string;
+  PriceID: number;
+  ProductID: number;
+  ProductName?: string; // For display
+  EffectiveDate: string; // date
+  ToDate?: string;       // Calculated or added field
+  UnitPrice: number;
+  status?: CardStatus;
+  createdAt?: string;
+}
+
+export interface Product {
+  ProductID: number;
+  ProductCode: string;
+  ProductName: string;
+  CurrentPrice: number;
+}
+
+export interface Vendor {
+  VendorID: number;
+  VendorCode: string;
+  VendorName: string;
+  VendorAddress?: string;
+  Phone?: string;
+}
+
+export interface Vehicle {
+  VehicleID: number;
+  LicensePlate: string;
+  Province?: string;
+  VehicleTypeID?: number;
+  StandardTareWeight?: number;
 }
 
 export interface ResourceOption {
@@ -46,6 +69,9 @@ export interface Ticket {
   poNumber?: string;
   status: TicketStatus;
   remarks?: string;
+  ProductID?: number;
+  VendorID?: number;
+  VehicleID?: number;
   createdAt: string;
   createdBy: string;
 }
