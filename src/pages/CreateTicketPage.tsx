@@ -107,6 +107,7 @@ export default function CreateTicketPage() {
                 products={products}
                 vendors={vendors}
                 vehicles={vehicles}
+                getTodayPrice={() => 0}
             />
 
             <Snackbar

@@ -10,23 +10,29 @@ import {
     ToggleButton,
     Paper,
     Stack,
+    alpha,
 } from '@mui/material';
 import dayjs from 'dayjs';
 import { useApp } from '../context/useApp';
-import type { Ticket, Product, Vendor, Vehicle } from '../types';
+import type { Ticket, ResourceOption, PaymentType, Product, Vendor, Vehicle } from '../types';
+import { API_BASE_URL } from '../config';
 
 interface TicketFormProps {
     open: boolean;
     onClose: () => void;
     onSubmit: (data: Partial<Ticket>) => void;
     editingTicket?: Ticket | null;
-    products: Product[];
-    vendors: Vendor[];
-    vehicles: Vehicle[];
+    getTodayPrice: (resourceName: string) => number; // Keep for compatibility, though we fetch API
+    products: Product[]; // Needed for ProductID
+    vendors: Vendor[];   // Needed for VendorID
+    vehicles: Vehicle[]; // Needed for VehicleID
 }
 
 const INITIAL_STATE: Partial<Ticket> = {
     ticketNumber: '',
+    resourceName: '',
+    paymentType: 'cash',
+    sellerName: '',
     licensePlate: '',
     weightIn: 0,
     weightOut: 0,
@@ -39,18 +45,18 @@ const INITIAL_STATE: Partial<Ticket> = {
 
 export default function TicketForm({
     open, onClose, onSubmit, editingTicket,
+    getTodayPrice,
     products, vendors, vehicles
 }: TicketFormProps) {
     const { t } = useApp();
     const [formData, setFormData] = useState<Partial<Ticket>>(INITIAL_STATE);
 
-    // Fetch active price when product is selected
+    // Fetch active price from API when ProductID changes (Preferred method)
     useEffect(() => {
         const fetchActivePrice = async () => {
             if (formData.ProductID && !editingTicket) {
                 try {
-                    // Use environment variable for API URL in production
-                    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+                    const apiUrl = API_BASE_URL;
                     const response = await fetch(
                         `${apiUrl}/api/product-prices/active/${formData.ProductID}?date=${dayjs().format('YYYY-MM-DD')}`
                     );
@@ -58,7 +64,6 @@ export default function TicketForm({
                         const priceData = await response.json();
                         setFormData(prev => ({ ...prev, unitPrice: priceData.UnitPrice }));
                     } else {
-                        // No active price found, set to 0
                         setFormData(prev => ({ ...prev, unitPrice: 0 }));
                     }
                 } catch (err) {
@@ -69,6 +74,21 @@ export default function TicketForm({
         };
         fetchActivePrice();
     }, [formData.ProductID, editingTicket]);
+
+    // Fallback: update price if resourceName changes (Legacy support)
+    useEffect(() => {
+        if (formData.resourceName && !formData.ProductID && !editingTicket) {
+            // Try to find product ID from name lookup
+            const product = products.find(p => p.ProductName === formData.resourceName);
+            if (product) {
+                setFormData(prev => ({ ...prev, ProductID: product.ProductID }));
+            } else {
+                // Fallback to prop function if no API lookup possible
+                const price = getTodayPrice(formData.resourceName);
+                setFormData(prev => ({ ...prev, unitPrice: price }));
+            }
+        }
+    }, [formData.resourceName, formData.ProductID, products, getTodayPrice, editingTicket]);
 
     useEffect(() => {
         if (editingTicket) {
@@ -94,11 +114,23 @@ export default function TicketForm({
         const total = remaining * (formData.unitPrice || 0);
 
         return { net, deducted, remaining, total };
-    }, [formData]);
+    }, [formData.weightIn, formData.weightOut, formData.impurity, formData.moisture, formData.unitPrice]);
 
-    const handleSubmit = () => {
-        onSubmit(formData);
+    const handleSubmit = (statusOverride?: 'approved' | 'pending') => {
+        onSubmit({
+            ...formData,
+            netWeight: calculations.net,
+            deductedWeight: calculations.deducted,
+            remainingWeight: calculations.remaining,
+            totalPrice: calculations.total,
+            status: statusOverride || editingTicket?.status || 'pending'
+        });
+        onClose();
     };
+
+    const resourceOptions: ResourceOption[] = products.map(p => ({ label: p.ProductName, value: p.ProductName }));
+    const vendorOptions = vendors.map(v => v.VendorName);
+    const vehicleOptions = vehicles.map(v => v.LicensePlate);
 
     return (
         <Dialog
@@ -107,161 +139,124 @@ export default function TicketForm({
             maxWidth="md"
             fullWidth
             PaperProps={{
-                sx: { borderRadius: 5, overflow: 'hidden' }
+                sx: { borderRadius: 4, bgcolor: '#f8fafc' }
             }}
         >
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, height: '100%' }}>
-                {/* Left Side: Form */}
-                <Box sx={{ flex: 1, p: 4, bgcolor: '#f8fafc' }}>
-                    <Typography variant="h5" fontWeight={800} color="#1e3a8a" sx={{ mb: 3 }}>
-                        {editingTicket ? t('ticket.edit') : t('ticket.create')}
+            <Box sx={{ p: 4 }}>
+                {/* Header Section */}
+                <Box sx={{ mb: 3 }}>
+                    <Typography variant="h5" fontWeight={800} color="#1e293b" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Box sx={{ width: 4, height: 24, bgcolor: '#3b82f6', mr: 2, borderRadius: 1 }} />
+                        บัตรชั่งน้ำหนัก (Weigh Ticket)
                     </Typography>
-
-                    <Stack spacing={3}>
-                        <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ mb: 1, display: 'block' }}>รายละเอียดทั่วไป</Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                                <TextField
-                                    label={t('ticket.number')}
-                                    fullWidth
-                                    value={formData.ticketNumber}
-                                    disabled
-                                    size="small"
-                                />
-                                <Box>
-                                    <ToggleButtonGroup
-                                        color="primary"
-                                        value={formData.paymentType}
-                                        exclusive
-                                        onChange={(_, v) => v && setFormData({ ...formData, paymentType: v })}
-                                        size="small"
-                                        fullWidth
-                                    >
-                                        <ToggleButton value="cash" sx={{ textTransform: 'none', fontWeight: 700 }}>{t('ticket.payment.cash')}</ToggleButton>
-                                        <ToggleButton value="po" sx={{ textTransform: 'none', fontWeight: 700 }}>{t('ticket.payment.po')}</ToggleButton>
-                                    </ToggleButtonGroup>
-                                </Box>
-                            </Box>
-                        </Box>
-
-                        <Box sx={{ display: 'grid', gridTemplateColumns: '6.5fr 3.5fr', gap: 2 }}>
-                            <Autocomplete
-                                options={vendors}
-                                getOptionLabel={(option) => option.VendorName}
-                                value={vendors.find(v => v.VendorName === formData.sellerName) || null}
-                                onChange={(_, newValue) => setFormData({
-                                    ...formData,
-                                    sellerName: newValue?.VendorName || '',
-                                    VendorID: newValue?.VendorID
-                                })}
-                                renderInput={(params) => <TextField {...params} label={t('ticket.seller')} size="small" />}
-                            />
-                            <Autocomplete
-                                options={products}
-                                getOptionLabel={(option) => option.ProductName}
-                                value={products.find(p => p.ProductName === formData.resourceName) || null}
-                                onChange={(_, newValue) => setFormData({
-                                    ...formData,
-                                    resourceName: newValue?.ProductName || '',
-                                    ProductID: newValue?.ProductID
-                                })}
-                                renderInput={(params) => <TextField {...params} label={t('ticket.product')} size="small" />}
-                            />
-                        </Box>
-
-                        <Autocomplete
-                            freeSolo
-                            options={vehicles}
-                            getOptionLabel={(option) => typeof option === 'string' ? option : option.LicensePlate}
-                            value={formData.licensePlate}
-                            onChange={(_, newValue) => setFormData({
-                                ...formData,
-                                licensePlate: typeof newValue === 'string' ? newValue : (newValue?.LicensePlate || ''),
-                                VehicleID: typeof newValue === 'string' ? undefined : newValue?.VehicleID
-                            })}
-                            renderInput={(params) => <TextField {...params} label={t('ticket.licensePlate')} fullWidth />}
-                        />
-
-                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                            <TextField
-                                label={`${t('ticket.weightIn')} (กก.)`}
-                                type="number"
-                                fullWidth
-                                value={formData.weightIn}
-                                onChange={(e) => setFormData({ ...formData, weightIn: Number(e.target.value) })}
-                                InputProps={{
-                                    endAdornment: <Typography variant="caption" color="text.secondary">กก.</Typography>
-                                }}
-                            />
-                            <TextField
-                                label={`${t('ticket.weightOut')} (กก.)`}
-                                type="number"
-                                fullWidth
-                                value={formData.weightOut}
-                                onChange={(e) => setFormData({ ...formData, weightOut: Number(e.target.value) })}
-                                InputProps={{
-                                    endAdornment: <Typography variant="caption" color="text.secondary">กก.</Typography>
-                                }}
-                            />
-                        </Box>
-
-                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                            <TextField
-                                label={`${t('ticket.impurity')} (%)`}
-                                type="number"
-                                fullWidth
-                                value={formData.impurity}
-                                onChange={(e) => setFormData({ ...formData, impurity: Number(e.target.value) })}
-                            />
-                            <TextField
-                                label={`${t('ticket.moisture')} (%)`}
-                                type="number"
-                                fullWidth
-                                value={formData.moisture}
-                                onChange={(e) => setFormData({ ...formData, moisture: Number(e.target.value) })}
-                            />
-                        </Box>
-                    </Stack>
-
-                    <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                        <Button onClick={onClose} sx={{ color: 'text.secondary', fontWeight: 600 }}>{t('ticket.cancel')}</Button>
-                        <Button
-                            variant="contained"
-                            onClick={handleSubmit}
-                            sx={{
-                                px: 4, py: 1,
-                                borderRadius: 3,
-                                backgroundImage: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-                                boxShadow: '0 4px 12px rgba(30, 58, 138, 0.2)',
-                                fontWeight: 700
-                            }}
-                        >
-                            {t('ticket.save')}
-                        </Button>
-                    </Box>
+                    <Typography variant="body2" color="#64748b" fontWeight={600}>
+                        เลขที่ตั๋ว: <span style={{ color: '#3b82f6', marginRight: '16px' }}>{formData.ticketNumber}</span>
+                        {formData.poNumber && (
+                            <>
+                                หมายเลข PO: <span style={{ color: '#ed6c02' }}>{formData.poNumber}</span>
+                            </>
+                        )}
+                    </Typography>
                 </Box>
 
-                {/* Right Side: Summary Card */}
-                <Box sx={{ width: { xs: '100%', md: 400 }, bgcolor: '#1e3a8a', color: '#fff', p: 4, display: 'flex', flexDirection: 'column' }}>
-                    <Box sx={{ mb: 4, textAlign: 'center' }}>
-                        <Typography variant="overline" letterSpacing={2} sx={{ opacity: 0.7 }}>OSCAR AGRO</Typography>
-                        <Typography variant="h4" fontWeight={900}>WEIGH TICKET</Typography>
-                        <Typography variant="subtitle2" sx={{ opacity: 0.7 }}>{formData.ticketNumber}</Typography>
+                {/* Transportation & Customer Section */}
+                <Paper elevation={0} sx={{ p: 3, borderRadius: 3, mb: 3, border: '1px solid #e2e8f0' }}>
+                    <Typography variant="subtitle1" fontWeight={700} color="#1e293b" sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <Box sx={{ width: 3, height: 16, bgcolor: '#3b82f6', mr: 1.5, borderRadius: 1 }} />
+                        ข้อมูลการขนส่งและลูกค้า
+                    </Typography>
+
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mb: 2 }}>
+                        <Autocomplete
+                            freeSolo
+                            options={vehicleOptions}
+                            value={formData.licensePlate}
+                            onChange={(_, newValue) => {
+                                const selectedVehicle = vehicles.find(v => v.LicensePlate === newValue);
+                                setFormData({
+                                    ...formData,
+                                    licensePlate: newValue || '',
+                                    VehicleID: selectedVehicle?.VehicleID
+                                });
+                            }}
+                            renderInput={(params) => <TextField {...params} label={t('ticket.licensePlate')} size="small" />}
+                        />
+                        <TextField
+                            label={t('ticket.vehicleType')}
+                            value={formData.vehicleType || ''}
+                            onChange={(e) => setFormData({ ...formData, vehicleType: e.target.value })}
+                            variant="outlined"
+                            size="small"
+                        />
+                        <ToggleButtonGroup
+                            value={formData.paymentType}
+                            exclusive
+                            onChange={(_, val) => val && setFormData({ ...formData, paymentType: val as PaymentType })}
+                            size="small"
+                            fullWidth
+                        >
+                            <ToggleButton value="cash" sx={{ textTransform: 'none', fontWeight: 700 }}>{t('ticket.payment.cash')}</ToggleButton>
+                            <ToggleButton value="po" sx={{ textTransform: 'none', fontWeight: 700 }}>{t('ticket.payment.po')}</ToggleButton>
+                        </ToggleButtonGroup>
                     </Box>
 
-                    <Paper elevation={0} sx={{ p: 0, borderRadius: 3, overflow: 'hidden', mb: 3, borderLeft: '5px solid #4ade80' }}>
-                        <Box sx={{ p: 2, bgcolor: '#fff' }}>
-                            <Typography variant="subtitle1" fontWeight={700} color="#1e293b" gutterBottom>น้ำหนักและราคา</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '6.5fr 3.5fr', gap: 2 }}>
+                        <Autocomplete
+                            freeSolo
+                            options={vendorOptions}
+                            value={formData.sellerName}
+                            onChange={(_, newValue) => {
+                                const selectedVendor = vendors.find(v => v.VendorName === newValue);
+                                setFormData({
+                                    ...formData,
+                                    sellerName: newValue || '',
+                                    VendorID: selectedVendor?.VendorID
+                                });
+                            }}
+                            renderInput={(params) => <TextField {...params} label={t('ticket.seller')} size="small" />}
+                        />
+                        <Autocomplete
+                            options={resourceOptions}
+                            getOptionLabel={(option) => option.label}
+                            value={resourceOptions.find(o => o.value === formData.resourceName) || null}
+                            onChange={(_, newValue) => {
+                                const selectedProduct = products.find(p => p.ProductName === newValue?.value);
+                                setFormData({
+                                    ...formData,
+                                    resourceName: newValue?.value || '',
+                                    ProductID: selectedProduct?.ProductID
+                                });
+                            }}
+                            renderInput={(params) => <TextField {...params} label={t('ticket.product')} size="small" />}
+                        />
+                    </Box>
+                </Paper>
+
+                {/* Weight Cards Section */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, mb: 3 }}>
+                    <Paper elevation={0} sx={{ p: 0, borderRadius: 3, overflow: 'hidden', borderLeft: '5px solid #3b82f6', border: '1px solid #e2e8f0' }}>
+                        <Box sx={{ p: 2 }}>
+                            <Typography variant="subtitle1" fontWeight={700} color="#1e293b" gutterBottom>เวลาและน้ำหนักขาเข้า</Typography>
                             <Typography variant="caption" color="#64748b" sx={{ display: 'flex', justifyContent: 'space-between' }}>
                                 วันที่-เวลา เข้า: <span>{formData.entryDateTime}</span>
                             </Typography>
                         </Box>
-                        <Box sx={{ p: 3, bgcolor: '#f0fdf4', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ p: 3, bgcolor: '#eff6ff', display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Box sx={{ flexGrow: 1 }}>
-                                <Typography variant="body2" color="#166534" fontWeight={700}>น้ำหนักสุทธิ (Net Weight)</Typography>
+                                <Typography variant="body2" color="#3b82f6" fontWeight={700}>น้ำหนักเข้า (Weight In)</Typography>
                                 <Box sx={{
                                     display: 'flex',
                                     alignItems: 'baseline',
+                                    gap: 1,
+                                    borderBottom: '2px dashed',
+                                    borderColor: alpha('#3b82f6', 0.3),
+                                    transition: 'all 0.2s',
+                                    cursor: 'text',
+                                    borderRadius: '4px 4px 0 0',
+                                    '&:hover': {
+                                        bgcolor: alpha('#3b82f6', 0.05),
+                                        borderColor: '#3b82f6'
+                                    }
                                 }}>
                                     <TextField
                                         variant="standard"
@@ -293,60 +288,122 @@ export default function TicketForm({
                                 <Box sx={{
                                     display: 'flex',
                                     alignItems: 'baseline',
+                                    gap: 1,
+                                    borderBottom: '2px dashed',
+                                    borderColor: alpha('#f97316', 0.3),
+                                    transition: 'all 0.2s',
+                                    cursor: 'text',
+                                    borderRadius: '4px 4px 0 0',
+                                    '&:hover': {
+                                        bgcolor: alpha('#f97316', 0.05),
+                                        borderColor: '#f97316'
+                                    }
                                 }}>
-                                    <Typography variant="h3" fontWeight={800} color="#c2410c">
-                                        {(formData.weightOut || 0).toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: 600, color: '#9a3412' }}>กก.</span>
-                                    </Typography>
+                                    <TextField
+                                        variant="standard"
+                                        type="number"
+                                        value={formData.weightOut || ''}
+                                        onChange={(e) => setFormData({ ...formData, weightOut: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                        InputProps={{ disableUnderline: true }}
+                                        sx={{
+                                            width: '100%',
+                                            '& input': { p: 0.5, fontWeight: 800, fontSize: '3rem', color: '#7c2d12' }
+                                        }}
+                                    />
+                                    <Typography variant="h6" fontWeight={600} color="#7c2d12" sx={{ pl: 1, pr: 1 }}>กก.</Typography>
                                 </Box>
                             </Box>
                         </Box>
                     </Paper>
+                </Box>
 
-                    <Box sx={{ mt: 'auto', pt: 4, display: 'flex', gap: 2, justifyContent: 'space-between' }}>
-                        <Box sx={{ borderRight: '1px solid #475569' }}>
-                            <Typography variant="caption" color="#94a3b8">{t('ticket.netWeight')}</Typography>
-                            <Typography variant="h4" fontWeight={800} color="#4ade80">
-                                {calculations.net.toLocaleString()} <span style={{ fontSize: '0.8rem' }}>กก.</span>
-                            </Typography>
-                        </Box>
-                        <Box sx={{ borderRight: '1px solid #475569' }}>
-                            <Typography variant="caption" color="#94a3b8">ราคาต่อหน่วย</Typography>
-                            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: 1 }}>
-                                <Typography variant="h4" fontWeight={800} color="#fff" sx={{ textAlign: 'right' }}>
-                                    {(formData.unitPrice || 0).toLocaleString()}
-                                </Typography>
-                                <Typography variant="h5" fontWeight={600}>บาท</Typography>
-                            </Box>
-                        </Box>
-                        <Box>
-                            <Typography variant="caption" color="#94a3b8">{t('ticket.totalPrice')}</Typography>
-                            <Typography variant="h4" fontWeight={800} color="#facc15">
-                                {calculations.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '0.8rem' }}>บาท</span>
-                            </Typography>
-                        </Box>
+                {/* Summary Bar Section */}
+                <Box sx={{
+                    p: 3,
+                    bgcolor: '#1e293b',
+                    borderRadius: 3,
+                    mb: 3,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    color: '#fff',
+                    textAlign: 'center'
+                }}>
+                    <Box sx={{ borderRight: '1px solid #475569' }}>
+                        <Typography variant="caption" color="#94a3b8">{t('ticket.netWeight')}</Typography>
+                        <Typography variant="h4" fontWeight={800} color="#4ade80">
+                            {calculations.net.toLocaleString()} <span style={{ fontSize: '0.8rem' }}>กก.</span>
+                        </Typography>
                     </Box>
-
-                    {/* Remarks Section */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mt: 3 }}>
-                        <Box sx={{ flexGrow: 1, mr: 4 }}>
-                            <Typography variant="caption" color="#64748b" sx={{ mb: 1, display: 'block', fontWeight: 700 }}>{t('ticket.remarks')}</Typography>
+                    <Box sx={{ borderRight: '1px solid #475569' }}>
+                        <Typography variant="caption" color="#94a3b8">ราคาต่อหน่วย</Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: 1 }}>
                             <TextField
-                                fullWidth
-                                multiline
-                                rows={3}
-                                value={formData.remarks || '-'}
-                                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                                variant="outlined"
+                                size="small"
+                                variant="standard"
+                                type="number"
+                                value={formData.unitPrice || ''}
+                                onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                InputProps={{ disableUnderline: true }}
                                 sx={{
-                                    bgcolor: '#f8fafc',
-                                    borderRadius: 2,
-                                    '& .MuiOutlinedInput-root': {
-                                        '& fieldset': { borderColor: '#e2e8f0' },
-                                        '&:hover fieldset': { borderColor: '#cbd5e1' },
-                                    }
+                                    width: 80,
+                                    '& input': { textAlign: 'right', p: 0, fontWeight: 800, fontSize: '2rem', color: '#fff' }
                                 }}
                             />
+                            <Typography variant="h5" fontWeight={600}>บาท</Typography>
                         </Box>
+                    </Box>
+                    <Box>
+                        <Typography variant="caption" color="#94a3b8">{t('ticket.totalPrice')}</Typography>
+                        <Typography variant="h4" fontWeight={800} color="#facc15">
+                            {calculations.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '0.8rem' }}>บาท</span>
+                        </Typography>
+                    </Box>
+                </Box>
+
+                {/* Remarks Section */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box sx={{ flexGrow: 1, mr: 4 }}>
+                        <Typography variant="caption" color="#64748b" sx={{ mb: 1, display: 'block', fontWeight: 700 }}>{t('ticket.remarks')}</Typography>
+                        <TextField
+                            fullWidth
+                            multiline
+                            rows={3}
+                            value={formData.remarks || '-'}
+                            onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                            variant="outlined"
+                            sx={{ bgcolor: '#fff' }}
+                        />
+                    </Box>
+                    <Box sx={{ textAlign: 'right', pt: 4 }}>
+                        <Typography variant="body2" color="#64748b" fontWeight={600}>
+                            ผู้บันทึกรายการ: <span style={{ color: '#1e293b' }}>{formData.createdBy}</span>
+                        </Typography>
+                        <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                            <Button
+                                variant="outlined"
+                                size="large"
+                                startIcon={null}
+                                sx={{ borderRadius: 2, px: 3, fontWeight: 700, borderColor: '#e2e8f0', color: '#64748b' }}
+                            >
+                                {t('ticket.btnPrint')}
+                            </Button>
+                            <Button
+                                variant="contained"
+                                size="large"
+                                onClick={() => handleSubmit()}
+                                sx={{ borderRadius: 2, px: 3, fontWeight: 700, bgcolor: '#64748b', '&:hover': { bgcolor: '#475569' } }}
+                            >
+                                {t('ticket.btnSave')}
+                            </Button>
+                            <Button
+                                variant="contained"
+                                size="large"
+                                onClick={() => handleSubmit('approved')}
+                                sx={{ borderRadius: 2, px: 3, fontWeight: 700, bgcolor: '#1a337e', '&:hover': { bgcolor: '#10265a' } }}
+                            >
+                                Save & Approve
+                            </Button>
+                        </Stack>
                     </Box>
                 </Box>
             </Box>

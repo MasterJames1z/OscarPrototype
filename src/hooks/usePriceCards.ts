@@ -8,7 +8,8 @@ import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
-const API_BASE_URL = 'http://localhost:5000/api';
+import { API_BASE_URL } from '../config';
+
 
 export function usePriceCards() {
     const [cards, setCards] = useState<PriceCard[]>([]);
@@ -52,10 +53,32 @@ export function usePriceCards() {
                 body: JSON.stringify({
                     ProductID: cardData.ProductID,
                     EffectiveDate: cardData.EffectiveDate,
+                    ToDate: cardData.ToDate,
                     UnitPrice: cardData.UnitPrice
                 }),
             });
             if (!response.ok) throw new Error('Failed to set price');
+            await fetchPrices();
+            return true;
+        } catch (err) {
+            console.error(err);
+            return false;
+        }
+    }, [fetchPrices]);
+
+    const updateCard = useCallback(async (id: number, cardData: Partial<PriceCard>) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/product-prices/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ProductID: cardData.ProductID,
+                    EffectiveDate: cardData.EffectiveDate,
+                    ToDate: cardData.ToDate,
+                    UnitPrice: cardData.UnitPrice
+                }),
+            });
+            if (!response.ok) throw new Error('Failed to update price');
             await fetchPrices();
             return true;
         } catch (err) {
@@ -92,6 +115,7 @@ export function usePriceCards() {
         cards,
         loading,
         addCard,
+        updateCard,
         deleteCard,
         getTodayPrice,
         refresh: fetchPrices

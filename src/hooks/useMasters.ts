@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Product, Vendor, Vehicle } from '../types';
-
-const API_BASE_URL = 'http://localhost:5000/api';
+import { API_BASE_URL } from '../config';
 
 export function useMasters() {
     const [products, setProducts] = useState<Product[]>([]);

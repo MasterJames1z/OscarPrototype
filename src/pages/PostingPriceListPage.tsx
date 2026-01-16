@@ -59,7 +59,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export default function PostingPriceListPage() {
-    const { cards, addCard, deleteCard } = usePriceCards();
+    const { cards, addCard, deleteCard, updateCard } = usePriceCards();
     const { products } = useMasters();
     const { t } = useApp();
     const [activeTab, setActiveTab] = useState(0);
@@ -104,8 +104,14 @@ export default function PostingPriceListPage() {
         console.warn('Duplicate not implemented');
     };
 
-    const handleQuickUpdate = (_id: number, _data: Partial<PriceCard>) => {
-        console.warn('Quick update not implemented');
+    const handleQuickUpdate = (id: number, data: Partial<PriceCard>) => {
+        updateCard(id, data).then((success: boolean) => {
+            if (success) {
+                setSnackbar({ open: true, message: t('msg.saved') || 'Price updated successfully', severity: 'success' });
+            } else {
+                setSnackbar({ open: true, message: 'Failed to update price', severity: 'error' });
+            }
+        });
     };
 
     const openCreateForm = () => {

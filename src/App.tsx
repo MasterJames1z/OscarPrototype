@@ -7,7 +7,7 @@ import { AppProvider } from './context/AppContext';
 function App() {
   return (
     <AppProvider>
-      <BrowserRouter>
+      <BrowserRouter basename="/weightbridge">
         <Routes>
           <Route path="/" element={<SidebarLayout />}>
             <Route index element={<PostingPriceListPage />} />
