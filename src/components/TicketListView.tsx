@@ -15,6 +15,11 @@ import {
     TableHead,
     TableRow,
     Chip,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Tooltip,
 } from '@mui/material';
 import {
     ViewModule as CardViewIcon,
@@ -22,11 +27,13 @@ import {
     Search as SearchIcon,
     EditOutlined as EditIcon,
     DeleteOutline as DeleteIcon,
+    CheckCircleOutline as ApproveIcon,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import type { Ticket } from '../types';
 import TicketCard from './TicketCard';
 import { useApp } from '../context/useApp';
+import { useMasters } from '../hooks/useMasters';
 
 interface TicketListViewProps {
     tickets: Ticket[];
@@ -38,17 +45,22 @@ interface TicketListViewProps {
 type TabValue = 'all' | 'pending' | 'approved';
 type ViewMode = 'card' | 'list';
 
-export default function TicketListView({ tickets, onEdit, onDelete }: TicketListViewProps) {
+export default function TicketListView({ tickets, onApprove, onEdit, onDelete }: TicketListViewProps) {
     const { t } = useApp();
+    const { products } = useMasters();
     const [tab, setTab] = useState<TabValue>('all');
     const [viewMode, setViewMode] = useState<ViewMode>('card');
     const [searchQuery, setSearchQuery] = useState('');
+    const [paymentFilter, setPaymentFilter] = useState<'all' | 'cash' | 'po'>('all');
+    const [resourceFilter, setResourceFilter] = useState('all');
 
     const filteredTickets = tickets.filter(ticket => {
         const matchesTab = tab === 'all' || ticket.status === tab;
         const searchStr = `${ticket.ticketNumber} ${ticket.resourceName} ${ticket.sellerName} ${ticket.licensePlate} ${ticket.poNumber || ''}`.toLowerCase();
         const matchesSearch = searchStr.includes(searchQuery.toLowerCase());
-        return matchesTab && matchesSearch;
+        const matchesPayment = paymentFilter === 'all' || ticket.paymentType === paymentFilter;
+        const matchesResource = resourceFilter === 'all' || ticket.resourceName === resourceFilter;
+        return matchesTab && matchesSearch && matchesPayment && matchesResource;
     });
 
     const getStatusConfig = (status: Ticket['status']) => {
@@ -119,14 +131,25 @@ export default function TicketListView({ tickets, onEdit, onDelete }: TicketList
                                 <TableCell sx={{ textAlign: 'center' }}>
                                     <Stack direction="row" spacing={0.5} justifyContent="center">
                                         {ticket.status !== 'approved' && (
-                                            <IconButton size="small" onClick={() => onEdit(ticket)} sx={{ color: 'text.secondary' }}>
-                                                <EditIcon fontSize="small" />
-                                            </IconButton>
+                                            <Tooltip title="Approve Ticket">
+                                                <IconButton size="small" onClick={() => onApprove(ticket.id)} sx={{ color: 'success.main' }}>
+                                                    <ApproveIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
+                                        {ticket.status !== 'approved' && (
+                                            <Tooltip title="Edit Ticket">
+                                                <IconButton size="small" onClick={() => onEdit(ticket)} sx={{ color: 'text.secondary' }}>
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
                                         )}
                                         {ticket.type !== 'auto' && ticket.status !== 'approved' && (
-                                            <IconButton size="small" onClick={() => onDelete(ticket.id)} sx={{ color: 'error.light' }}>
-                                                <DeleteIcon fontSize="small" />
-                                            </IconButton>
+                                            <Tooltip title="Delete Ticket">
+                                                <IconButton size="small" onClick={() => onDelete(ticket.id)} sx={{ color: 'error.light' }}>
+                                                    <DeleteIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
                                         )}
                                     </Stack>
                                 </TableCell>
@@ -166,67 +189,72 @@ export default function TicketListView({ tickets, onEdit, onDelete }: TicketList
 
             {/* Search and Filters Row */}
             <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: alpha('#1a337e', 0.05) }}>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems="center">
                     <TextField
                         fullWidth
-                        placeholder="ค้นหาตามชื่อสินค้า, ทะเบียน, ผู้ขาย..."
+                        placeholder="ค้นหา..."
                         size="small"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon sx={{ color: '#94a3b8', fontSize: 20 }} />
+                                    <SearchIcon sx={{ color: '#94a3b8', fontSize: 18 }} />
                                 </InputAdornment>
                             ),
                         }}
                         sx={{
+                            minWidth: 200,
                             '& .MuiOutlinedInput-root': {
-                                borderRadius: 3,
+                                borderRadius: 2,
                                 bgcolor: '#fff',
-                                transition: 'all 0.2s',
-                                '&:hover': { bgcolor: '#f8fafc' },
                                 '& fieldset': { borderColor: '#e2e8f0' }
                             }
                         }}
                     />
 
-                    <Stack
-                        direction="row"
-                        sx={{
-                            bgcolor: '#f1f5f9',
-                            p: 0.5,
-                            borderRadius: 3,
-                            width: { xs: '100%', md: 'auto' },
-                            justifyContent: 'center'
-                        }}
-                    >
-                        {(['all', 'pending', 'approved'] as TabValue[]).map((val) => (
-                            <Box
-                                key={val}
-                                onClick={() => setTab(val)}
-                                sx={{
-                                    px: 3,
-                                    py: 1,
-                                    borderRadius: 2.5,
-                                    cursor: 'pointer',
-                                    fontSize: '0.875rem',
-                                    fontWeight: 700,
-                                    textAlign: 'center',
-                                    transition: 'all 0.2s',
-                                    bgcolor: tab === val ? '#1a337e' : 'transparent',
-                                    color: tab === val ? '#fff' : '#64748b',
-                                    '&:hover': {
-                                        bgcolor: tab === val ? '#1a337e' : alpha('#94a3b8', 0.1)
-                                    }
-                                }}
-                            >
-                                {val === 'all' ? t('status.all') :
-                                    val === 'pending' ? t('ticket.status.pending') :
-                                        t('ticket.status.approved')}
-                            </Box>
-                        ))}
-                    </Stack>
+                    <FormControl size="small" sx={{ minWidth: 150, bgcolor: '#fff' }}>
+                        <InputLabel sx={{ fontWeight: 600 }}>Status</InputLabel>
+                        <Select
+                            value={tab}
+                            label="Status"
+                            onChange={(e) => setTab(e.target.value as any)}
+                            sx={{ borderRadius: 2 }}
+                        >
+                            <MenuItem value="all">All</MenuItem>
+                            <MenuItem value="pending">Pending</MenuItem>
+                            <MenuItem value="approved">Approved</MenuItem>
+                        </Select>
+                    </FormControl>
+
+                    <FormControl size="small" sx={{ minWidth: 180, bgcolor: '#fff' }}>
+                        <InputLabel sx={{ fontWeight: 600 }}>Payment Type</InputLabel>
+                        <Select
+                            value={paymentFilter}
+                            label="Payment Type"
+                            onChange={(e) => setPaymentFilter(e.target.value as any)}
+                            sx={{ borderRadius: 2 }}
+                        >
+                            <MenuItem value="all">All</MenuItem>
+                            <MenuItem value="cash">Cash</MenuItem>
+                            <MenuItem value="po">PO</MenuItem>
+                        </Select>
+                    </FormControl>
+
+                    <FormControl size="small" sx={{ minWidth: 200, bgcolor: '#fff' }}>
+                        <InputLabel sx={{ fontWeight: 600 }}>Resource</InputLabel>
+                        <Select
+                            value={resourceFilter}
+                            label="Resource"
+                            onChange={(e) => setResourceFilter(e.target.value)}
+                            sx={{ borderRadius: 2 }}
+                        >
+                            <MenuItem value="all">All</MenuItem>
+                            {products.map(p => (
+                                <MenuItem key={p.ProductID} value={p.ProductName}>{p.ProductName}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
                 </Stack>
             </Box>
 

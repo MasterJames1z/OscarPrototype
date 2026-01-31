@@ -8,7 +8,7 @@ import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
-import { API_BASE_URL } from '../config';
+import { authFetch } from '../utils/api';
 
 
 export function usePriceCards() {
@@ -18,7 +18,8 @@ export function usePriceCards() {
     const fetchPrices = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/product-prices`);
+            // Add cache-buster to ensure we get fresh data after updates
+            const response = await authFetch(`/product-prices?_t=${Date.now()}`);
             if (!response.ok) throw new Error('Failed to fetch prices');
             const data = await response.json();
 
@@ -45,16 +46,16 @@ export function usePriceCards() {
         fetchPrices();
     }, [fetchPrices]);
 
-    const addCard = useCallback(async (cardData: Omit<PriceCard, 'PriceID' | 'status' | 'createdAt'>) => {
+    const addCard = useCallback(async (cardData: Omit<PriceCard, 'PriceID' | 'status' | 'createdAt'>, changedBy?: string) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/product-prices`, {
+            const response = await authFetch('/product-prices', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ProductID: cardData.ProductID,
                     EffectiveDate: cardData.EffectiveDate,
                     ToDate: cardData.ToDate,
-                    UnitPrice: cardData.UnitPrice
+                    UnitPrice: cardData.UnitPrice,
+                    ChangedBy: changedBy // Added field
                 }),
             });
             if (!response.ok) throw new Error('Failed to set price');
@@ -66,16 +67,13 @@ export function usePriceCards() {
         }
     }, [fetchPrices]);
 
-    const updateCard = useCallback(async (id: number, cardData: Partial<PriceCard>) => {
+    const updateCard = useCallback(async (id: number, cardData: Partial<PriceCard>, changedBy?: string) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/product-prices/${id}`, {
+            const response = await authFetch(`/product-prices/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ProductID: cardData.ProductID,
-                    EffectiveDate: cardData.EffectiveDate,
-                    ToDate: cardData.ToDate,
-                    UnitPrice: cardData.UnitPrice
+                    ...cardData,
+                    ChangedBy: changedBy // Added field
                 }),
             });
             if (!response.ok) throw new Error('Failed to update price');
@@ -89,7 +87,7 @@ export function usePriceCards() {
 
     const deleteCard = useCallback(async (id: number) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/product-prices/${id}`, {
+            const response = await authFetch(`/product-prices/${id}`, {
                 method: 'DELETE',
             });
             if (!response.ok) throw new Error('Failed to delete price');

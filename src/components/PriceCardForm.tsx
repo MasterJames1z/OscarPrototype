@@ -9,9 +9,16 @@ import {
     DialogContent,
     DialogActions,
     Typography,
+    Box,
+    Divider,
+    List,
+    ListItem,
+    ListItemText,
 } from '@mui/material';
 import { useApp } from '../context/useApp';
+import { usePriceHistory } from '../hooks/usePriceHistory';
 import type { PriceCard, Product } from '../types';
+import dayjs from 'dayjs';
 
 interface PriceCardFormProps {
     open: boolean;
@@ -31,6 +38,7 @@ const INITIAL_FORM_STATE = {
 export default function PriceCardForm({ open, onClose, onSubmit, editingCard, products }: PriceCardFormProps) {
     const { t } = useApp();
     const [formData, setFormData] = useState(INITIAL_FORM_STATE);
+    const { history } = usePriceHistory(editingCard?.PriceID);
 
     useEffect(() => {
         if (editingCard) {
@@ -79,8 +87,8 @@ export default function PriceCardForm({ open, onClose, onSubmit, editingCard, pr
                 <Typography variant="h5" sx={{ fontWeight: 800, color: 'primary.main' }}>
                     {editingCard ? t('form.editTitle') : t('form.createTitle')}
                 </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                    {t('form.subtitle')}
+                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5, fontWeight: 600 }}>
+                    {editingCard ? `Price ID: #${editingCard.PriceID}` : t('form.subtitle')}
                 </Typography>
             </DialogTitle>
             <form onSubmit={handleSubmit}>
@@ -132,6 +140,61 @@ export default function PriceCardForm({ open, onClose, onSubmit, editingCard, pr
                             />
                         </Stack>
                     </Stack>
+
+                    {editingCard && history.length > 0 && (
+                        <Box sx={{ mt: 4 }}>
+                            <Divider sx={{ mb: 2 }}>
+                                <Typography variant="caption" color="text.secondary" fontWeight={700}>
+                                    HISTORY LOGS
+                                </Typography>
+                            </Divider>
+                            <List dense sx={{ bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 2, maxH: 200, overflow: 'auto' }}>
+                                {history.map((h) => (
+                                    <ListItem key={h.HistoryID} sx={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                                        <ListItemText
+                                            primary={
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                    <Typography variant="caption" fontWeight={700} color="primary">
+                                                        {h.ActionType} by {h.ChangedBy}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {dayjs(h.ChangedAt).format('DD/MM/YYYY HH:mm:ss')}
+                                                    </Typography>
+                                                </Box>
+                                            }
+                                            secondary={
+                                                <Box sx={{ mt: 0.5 }}>
+                                                    {h.ActionType === 'UPDATE' ? (
+                                                        <Typography variant="caption" display="block">
+                                                            <strong>Price:</strong> {
+                                                                (h.NewUnitPrice === null || h.NewUnitPrice === undefined)
+                                                                    ? h.OldUnitPrice
+                                                                    : (h.OldUnitPrice === h.NewUnitPrice ? h.NewUnitPrice : `${h.OldUnitPrice} → ${h.NewUnitPrice}`)
+                                                            } <br />
+                                                            <strong>Date:</strong> {
+                                                                ((h.NewEffectiveDate === null || h.NewEffectiveDate === undefined) && (h.NewToDate === null || h.NewToDate === undefined))
+                                                                    ? `(${dayjs(h.OldEffectiveDate).format('DD/MM')} - ${h.OldToDate ? dayjs(h.OldToDate).format('DD/MM') : dayjs(h.OldEffectiveDate).format('DD/MM')})`
+                                                                    : (h.OldEffectiveDate === h.NewEffectiveDate && h.OldToDate === h.NewToDate)
+                                                                        ? `(${dayjs(h.NewEffectiveDate).format('DD/MM')} - ${h.NewToDate ? dayjs(h.NewToDate).format('DD/MM') : dayjs(h.NewEffectiveDate).format('DD/MM')})`
+                                                                        : `(${dayjs(h.OldEffectiveDate).format('DD/MM')} - ${h.OldToDate ? dayjs(h.OldToDate).format('DD/MM') : dayjs(h.OldEffectiveDate).format('DD/MM')}) → 
+                                                                   (${dayjs(h.NewEffectiveDate).format('DD/MM')} - ${h.NewToDate ? dayjs(h.NewToDate).format('DD/MM') : dayjs(h.NewEffectiveDate).format('DD/MM')})`
+                                                            }
+                                                        </Typography>
+                                                    ) : (
+                                                        <Typography variant="caption" display="block">
+                                                            <strong>Initial Price:</strong> {h.NewUnitPrice} <br />
+                                                            <strong>Initial Date:</strong> {dayjs(h.NewEffectiveDate).format('DD/MM/YYYY')}
+                                                            {h.NewToDate && ` - ${dayjs(h.NewToDate).format('DD/MM/YYYY')}`}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            }
+                                        />
+                                    </ListItem>
+                                ))}
+                            </List>
+                        </Box>
+                    )}
                 </DialogContent>
                 <DialogActions sx={{ p: 3, pt: 1 }}>
                     <Button onClick={handleClose} sx={{ color: 'text.secondary' }}>

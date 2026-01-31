@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Product, Vendor, Vehicle } from '../types';
-import { API_BASE_URL } from '../config';
+import { authFetch } from '../utils/api';
 
 export function useMasters() {
     const [products, setProducts] = useState<Product[]>([]);
@@ -12,9 +12,9 @@ export function useMasters() {
         setLoading(true);
         try {
             const [prodRes, vendRes, vehRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/products`),
-                fetch(`${API_BASE_URL}/vendors`),
-                fetch(`${API_BASE_URL}/vehicles`)
+                authFetch('/products'),
+                authFetch('/vendors'),
+                authFetch('/vehicles')
             ]);
 
             if (prodRes.ok) setProducts(await prodRes.json());

@@ -75,3 +75,18 @@ export interface Ticket {
   createdAt: string;
   createdBy: string;
 }
+export interface PriceHistory {
+  HistoryID: number;
+  PriceID: number;
+  ProductID: number;
+  ProductName?: string;
+  OldUnitPrice: number | null;
+  NewUnitPrice: number | null;
+  OldEffectiveDate: string | null;
+  NewEffectiveDate: string | null;
+  OldToDate: string | null;
+  NewToDate: string | null;
+  ActionType: 'CREATE' | 'UPDATE' | 'DELETE';
+  ChangedBy: string;
+  ChangedAt: string;
+}

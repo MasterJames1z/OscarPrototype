@@ -30,7 +30,16 @@ import { useMasters } from '../hooks/useMasters';
 import PriceCardForm from '../components/PriceCardForm';
 import CalendarByResourceView from '../components/CalendarByResourceView';
 import CardsView from '../components/CardsView';
+import PriceListView from '../components/PriceListView';
 import { useApp } from '../context/useApp';
+import { useAuth } from '../context/AuthContext';
+import {
+    Search as SearchIcon,
+    ListAlt as ListAltIcon,
+} from '@mui/icons-material';
+import { TextField, InputAdornment, Stack, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
+import { getCardStatus } from '../utils/date.ts';
+import type { CardStatus } from '../types';
 
 interface TabPanelProps {
     children?: React.ReactNode;
@@ -62,26 +71,52 @@ export default function PostingPriceListPage() {
     const { cards, addCard, deleteCard, updateCard } = usePriceCards();
     const { products } = useMasters();
     const { t } = useApp();
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState(0);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingCard, setEditingCard] = useState<PriceCard | null>(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as AlertColor });
+
+    // Filters
+    const [search, setSearch] = useState('');
+    const [resourceFilter, setResourceFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState<CardStatus | 'all'>('all');
+
+    const filteredCards = cards.filter(c => {
+        const matchesSearch = (c.ProductName || '').toLowerCase().includes(search.toLowerCase());
+        const matchesResource = resourceFilter === 'all' || c.ProductName === resourceFilter;
+        const currentStatus = getCardStatus(c.EffectiveDate, c.ToDate);
+        const matchesStatus = statusFilter === 'all' || currentStatus === statusFilter;
+        return matchesSearch && matchesResource && matchesStatus;
+    });
 
     const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
         setActiveTab(newValue);
     };
 
     const handleFormSubmit = (data: Omit<PriceCard, 'PriceID' | 'status' | 'createdAt'>) => {
-        // Since the backend handles UPSERT with ProductID + EffectiveDate, we treat all as add/update
-        addCard(data).then((success: boolean) => {
-            if (success) {
-                setSnackbar({ open: true, message: t('msg.saved') || 'Saved successfully', severity: 'success' });
-                setIsFormOpen(false);
-                setEditingCard(null);
-            } else {
-                setSnackbar({ open: true, message: 'Failed to save price', severity: 'error' });
-            }
-        });
+        const creatorName = user ? `${user.firstname} ${user.lastname}` : 'Admin_System';
+
+        if (editingCard) {
+            updateCard(editingCard.PriceID, data, creatorName).then((success: boolean) => {
+                if (success) {
+                    setSnackbar({ open: true, message: t('msg.saved') || 'Updated successfully', severity: 'success' });
+                    setIsFormOpen(false);
+                    setEditingCard(null);
+                } else {
+                    setSnackbar({ open: true, message: 'Failed to update price', severity: 'error' });
+                }
+            });
+        } else {
+            addCard(data, creatorName).then((success: boolean) => {
+                if (success) {
+                    setSnackbar({ open: true, message: t('msg.saved') || 'Saved successfully', severity: 'success' });
+                    setIsFormOpen(false);
+                } else {
+                    setSnackbar({ open: true, message: 'Failed to save price', severity: 'error' });
+                }
+            });
+        }
     };
 
     const handleEdit = (card: PriceCard) => {
@@ -186,23 +221,87 @@ export default function PostingPriceListPage() {
                                 label={t('tab.cards')}
                                 sx={{ fontWeight: 700, fontSize: '0.85rem', textTransform: 'none', py: 2.5 }}
                             />
+                            <Tab
+                                icon={<ListAltIcon sx={{ fontSize: 20 }} />}
+                                iconPosition="start"
+                                label="List View"
+                                sx={{ fontWeight: 700, fontSize: '0.85rem', textTransform: 'none', py: 2.5 }}
+                            />
                         </Tabs>
+
+                        {/* Filters Section */}
+                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ py: 2, borderTop: '1px solid', borderColor: alpha('#1a337e', 0.05) }}>
+                            <TextField
+                                size="small"
+                                placeholder={t('search.placeholder') || "Search products..."}
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                sx={{ flexGrow: 1, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <SearchIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                                        </InputAdornment>
+                                    ),
+                                }}
+                            />
+                            <FormControl size="small" sx={{ minWidth: 200 }}>
+                                <InputLabel>Resource</InputLabel>
+                                <Select
+                                    label="Resource"
+                                    value={resourceFilter}
+                                    onChange={(e) => setResourceFilter(e.target.value)}
+                                    sx={{ borderRadius: 2 }}
+                                >
+                                    <MenuItem value="all">All Resources</MenuItem>
+                                    {products.map(p => (
+                                        <MenuItem key={p.ProductID} value={p.ProductName}>{p.ProductName}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                            <FormControl size="small" sx={{ minWidth: 150 }}>
+                                <InputLabel>Status</InputLabel>
+                                <Select
+                                    label="Status"
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                                    sx={{ borderRadius: 2 }}
+                                >
+                                    <MenuItem value="all">All Status</MenuItem>
+                                    <MenuItem value="active">Active</MenuItem>
+                                    <MenuItem value="upcoming">Upcoming</MenuItem>
+                                    <MenuItem value="expired">Expired</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Stack>
                     </Box>
 
                     <Box sx={{ flexGrow: 1, overflow: 'hidden', width: '100%', bgcolor: '#fff' }}>
                         <TabPanel value={activeTab} index={0} contentSx={{ p: 0, overflow: 'hidden', width: '100%', height: '100%' }}>
                             <CalendarByResourceView
-                                cards={cards}
+                                cards={filteredCards}
                                 onEdit={handleEdit}
                                 onDuplicate={handleDuplicate as any}
                                 onDelete={handleDelete as any}
                                 onUpdate={handleQuickUpdate as any}
-                                allResources={products.map(p => p.ProductName)}
+                                allResources={
+                                    resourceFilter === 'all'
+                                        ? products.map(p => p.ProductName)
+                                        : [resourceFilter]
+                                }
                             />
                         </TabPanel>
                         <TabPanel value={activeTab} index={1} contentSx={{ p: 0, width: '100%', height: '100%' }}>
                             <CardsView
-                                cards={cards}
+                                cards={filteredCards}
+                                onEdit={handleEdit}
+                                onDuplicate={handleDuplicate as any}
+                                onDelete={handleDelete as any}
+                            />
+                        </TabPanel>
+                        <TabPanel value={activeTab} index={2} contentSx={{ p: 0, width: '100%', height: '100%' }}>
+                            <PriceListView
+                                cards={filteredCards}
                                 onEdit={handleEdit}
                                 onDuplicate={handleDuplicate as any}
                                 onDelete={handleDelete as any}

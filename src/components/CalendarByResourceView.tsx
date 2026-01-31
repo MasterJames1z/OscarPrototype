@@ -105,8 +105,11 @@ export default function CalendarByResourceView({
     }, [viewMode, currentDate, getTodayMemo]);
 
     useEffect(() => {
+        let hasMoved = false;
+
         const handleMouseMove = (e: MouseEvent) => {
             if (!interaction || !gridRef.current) return;
+            hasMoved = true;
 
             const rect = gridRef.current.getBoundingClientRect();
             const gridWidth = rect.width - RESOURCE_COL_WIDTH;
@@ -126,37 +129,39 @@ export default function CalendarByResourceView({
         const handleMouseUp = (e: MouseEvent) => {
             if (!interaction || !gridRef.current) return;
 
-            const rect = gridRef.current.getBoundingClientRect();
-            const gridWidth = rect.width - RESOURCE_COL_WIDTH;
-            const deltaX = e.clientX - interaction.initialMouseX;
+            if (hasMoved) {
+                const rect = gridRef.current.getBoundingClientRect();
+                const gridWidth = rect.width - RESOURCE_COL_WIDTH;
+                const deltaX = e.clientX - interaction.initialMouseX;
 
-            const viewStart = timeRange.start.startOf('day');
-            const viewEnd = timeRange.end.endOf('day');
-            const totalDiff = viewEnd.clone().add(1, 'millisecond').diff(viewStart);
+                const viewStart = timeRange.start.startOf('day');
+                const viewEnd = timeRange.end.endOf('day');
+                const totalDiff = viewEnd.clone().add(1, 'millisecond').diff(viewStart);
 
-            const msPerPixel = totalDiff / gridWidth;
-            const deltaMs = deltaX * msPerPixel;
-            const deltaDays = Math.round(deltaMs / (24 * 60 * 60 * 1000));
+                const msPerPixel = totalDiff / gridWidth;
+                const deltaMs = deltaX * msPerPixel;
+                const deltaDays = Math.round(deltaMs / (24 * 60 * 60 * 1000));
 
-            if (deltaDays !== 0) {
-                let newStart = interaction.initialStart;
-                let newEnd = interaction.initialEnd;
+                if (deltaDays !== 0) {
+                    let newStart = interaction.initialStart;
+                    let newEnd = interaction.initialEnd;
 
-                if (interaction.type === 'drag') {
-                    newStart = interaction.initialStart.add(deltaDays, 'day');
-                    newEnd = interaction.initialEnd.add(deltaDays, 'day');
-                } else if (interaction.type === 'resize-start') {
-                    newStart = interaction.initialStart.add(deltaDays, 'day');
-                    if (newStart.isAfter(newEnd)) newStart = newEnd;
-                } else if (interaction.type === 'resize-end') {
-                    newEnd = interaction.initialEnd.add(deltaDays, 'day');
-                    if (newEnd.isBefore(newStart)) newEnd = newStart;
+                    if (interaction.type === 'drag') {
+                        newStart = interaction.initialStart.add(deltaDays, 'day');
+                        newEnd = interaction.initialEnd.add(deltaDays, 'day');
+                    } else if (interaction.type === 'resize-start') {
+                        newStart = interaction.initialStart.add(deltaDays, 'day');
+                        if (newStart.isAfter(newEnd)) newStart = newEnd;
+                    } else if (interaction.type === 'resize-end') {
+                        newEnd = interaction.initialEnd.add(deltaDays, 'day');
+                        if (newEnd.isBefore(newStart)) newEnd = newStart;
+                    }
+
+                    onUpdate(interaction.card.PriceID.toString(), {
+                        EffectiveDate: newStart.format('YYYY-MM-DD'),
+                        ToDate: newEnd.format('YYYY-MM-DD'),
+                    });
                 }
-
-                onUpdate(interaction.card.PriceID.toString(), {
-                    EffectiveDate: newStart.format('YYYY-MM-DD'),
-                    ToDate: newEnd.format('YYYY-MM-DD'),
-                });
             }
 
             setInteraction(null);
@@ -378,7 +383,7 @@ export default function CalendarByResourceView({
 
                                                         <Box
                                                             component="span"
-                                                            onClick={(e) => {
+                                                            onDoubleClick={(e) => {
                                                                 e.stopPropagation();
                                                                 onEdit(card);
                                                             }}
@@ -390,7 +395,8 @@ export default function CalendarByResourceView({
                                                                 display: 'flex',
                                                                 alignItems: 'center',
                                                                 justifyContent: 'center',
-                                                                pointerEvents: 'auto'
+                                                                pointerEvents: 'auto',
+                                                                cursor: 'pointer' // Indicate it's clickable
                                                             }}
                                                         >
                                                             ฿{card.UnitPrice.toLocaleString()}

@@ -11,11 +11,13 @@ import {
     Paper,
     Stack,
     alpha,
+    useTheme,
 } from '@mui/material';
 import dayjs from 'dayjs';
 import { useApp } from '../context/useApp';
+import { useAuth } from '../context/AuthContext';
 import type { Ticket, ResourceOption, PaymentType, Product, Vendor, Vehicle } from '../types';
-import { API_BASE_URL } from '../config';
+import { authFetch } from '../utils/api';
 
 interface TicketFormProps {
     open: boolean;
@@ -43,32 +45,45 @@ const INITIAL_STATE: Partial<Ticket> = {
     status: 'pending',
 };
 
+
+
 export default function TicketForm({
     open, onClose, onSubmit, editingTicket,
     getTodayPrice,
     products, vendors, vehicles
 }: TicketFormProps) {
     const { t } = useApp();
+    const theme = useTheme();
     const [formData, setFormData] = useState<Partial<Ticket>>(INITIAL_STATE);
+    const { user } = useAuth();
+
+    const [activePriceInfo, setActivePriceInfo] = useState<{ id: number; start: string; end?: string; price: number } | null>(null);
 
     // Fetch active price from API when ProductID changes (Preferred method)
     useEffect(() => {
         const fetchActivePrice = async () => {
             if (formData.ProductID && !editingTicket) {
                 try {
-                    const apiUrl = API_BASE_URL;
-                    const response = await fetch(
-                        `${apiUrl}/api/product-prices/active/${formData.ProductID}?date=${dayjs().format('YYYY-MM-DD')}`
+                    const response = await authFetch(
+                        `/product-prices/active/${formData.ProductID}?date=${dayjs().format('YYYY-MM-DD')}`
                     );
                     if (response.ok) {
                         const priceData = await response.json();
                         setFormData(prev => ({ ...prev, unitPrice: priceData.UnitPrice }));
+                        setActivePriceInfo({
+                            id: priceData.PriceID,
+                            price: priceData.UnitPrice,
+                            start: priceData.EffectiveDate,
+                            end: priceData.ToDate
+                        });
                     } else {
                         setFormData(prev => ({ ...prev, unitPrice: 0 }));
+                        setActivePriceInfo(null);
                     }
                 } catch (err) {
                     console.error('Failed to fetch active price:', err);
                     setFormData(prev => ({ ...prev, unitPrice: 0 }));
+                    setActivePriceInfo(null);
                 }
             }
         };
@@ -98,12 +113,12 @@ export default function TicketForm({
                 ...INITIAL_STATE,
                 paymentType: 'cash',
                 ticketNumber: `00000${Math.floor(25000 + Math.random() * 5000)}`,
-                createdBy: 'Admin_System',
+                createdBy: user ? `${user.firstname} ${user.lastname}` : 'Admin_System',
                 entryDateTime: dayjs().format('DD/MM/YYYY HH:mm:ss'),
                 exitDateTime: dayjs().add(25, 'minute').format('DD/MM/YYYY HH:mm:ss'),
             });
         }
-    }, [editingTicket, open]);
+    }, [editingTicket, open, user]);
 
     const calculations = useMemo(() => {
         const net = (formData.weightIn || 0) - (formData.weightOut || 0);
@@ -144,19 +159,28 @@ export default function TicketForm({
         >
             <Box sx={{ p: 4 }}>
                 {/* Header Section */}
-                <Box sx={{ mb: 3 }}>
-                    <Typography variant="h5" fontWeight={800} color="#1e293b" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Box sx={{ width: 4, height: 24, bgcolor: '#3b82f6', mr: 2, borderRadius: 1 }} />
-                        บัตรชั่งน้ำหนัก (Weigh Ticket)
-                    </Typography>
-                    <Typography variant="body2" color="#64748b" fontWeight={600}>
-                        เลขที่ตั๋ว: <span style={{ color: '#3b82f6', marginRight: '16px' }}>{formData.ticketNumber}</span>
-                        {formData.poNumber && (
-                            <>
-                                หมายเลข PO: <span style={{ color: '#ed6c02' }}>{formData.poNumber}</span>
-                            </>
-                        )}
-                    </Typography>
+                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box>
+                        <Typography variant="h5" fontWeight={800} color="#1e293b" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Box sx={{ width: 4, height: 24, bgcolor: '#3b82f6', mr: 2, borderRadius: 1 }} />
+                            บัตรชั่งน้ำหนัก (Weigh Ticket)
+                        </Typography>
+                        <Typography variant="body2" color="#64748b" fontWeight={600}>
+                            เลขที่ตั๋ว: <span style={{ color: '#3b82f6', marginRight: '16px' }}>{formData.ticketNumber}</span>
+                            {formData.poNumber && (
+                                <>
+                                    หมายเลข PO: <span style={{ color: '#ed6c02' }}>{formData.poNumber}</span>
+                                </>
+                            )}
+                        </Typography>
+                    </Box>
+                    {editingTicket && (
+                        <Paper elevation={0} sx={{ px: 2, py: 1, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.2) }}>
+                            <Typography variant="caption" fontWeight={700} color="primary.main">
+                                TICKET ID: #{editingTicket.id}
+                            </Typography>
+                        </Paper>
+                    )}
                 </Box>
 
                 {/* Transportation & Customer Section */}
@@ -200,7 +224,7 @@ export default function TicketForm({
                         </ToggleButtonGroup>
                     </Box>
 
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '6.5fr 3.5fr', gap: 2 }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 2, mb: 2 }}>
                         <Autocomplete
                             freeSolo
                             options={vendorOptions}
@@ -215,6 +239,9 @@ export default function TicketForm({
                             }}
                             renderInput={(params) => <TextField {...params} label={t('ticket.seller')} size="small" />}
                         />
+                    </Box>
+
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 2, mb: 2 }}>
                         <Autocomplete
                             options={resourceOptions}
                             getOptionLabel={(option) => option.label}
@@ -227,7 +254,42 @@ export default function TicketForm({
                                     ProductID: selectedProduct?.ProductID
                                 });
                             }}
-                            renderInput={(params) => <TextField {...params} label={t('ticket.product')} size="small" />}
+                            renderInput={(params) => <TextField {...params} label={t('ticket.product')} size="small" fullWidth />}
+                        />
+                    </Box>
+
+                    {activePriceInfo && (
+                        <Box sx={{ bgcolor: alpha('#3b82f6', 0.05), p: 2, borderRadius: 2, mb: 2, border: '1px dashed', borderColor: alpha('#3b82f6', 0.3) }}>
+                            <Typography variant="caption" sx={{ color: '#3b82f6', fontWeight: 700, display: 'block', mb: 0.5 }}>
+                                ดึงข้อมูลราคาจาก Price ID: #{activePriceInfo.id}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                                ราคา: ฿{activePriceInfo.price} | มีผลตั้งแต่วันที่: {dayjs(activePriceInfo.start).format('DD/MM/YYYY')} - {activePriceInfo.end ? dayjs(activePriceInfo.end).format('DD/MM/YYYY') : 'ไม่มีกำหนด'}
+                            </Typography>
+                        </Box>
+                    )}
+
+                    {!activePriceInfo && formData.ProductID ? (
+                        <Box sx={{ bgcolor: alpha('#ef4444', 0.05), p: 2, borderRadius: 2, mb: 2, border: '1px dashed', borderColor: alpha('#ef4444', 0.3) }}>
+                            <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 700, display: 'block' }}>
+                                ⚠️ ไม่พบข้อมูลราคาสำหรับสินค้านี้
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                                กรุณาเพิ่มข้อมูลราคาที่หน้า "จัดการราคา" (Create Price) ก่อนทำรายการ
+                            </Typography>
+                        </Box>
+                    ) : null}
+
+                    <Box sx={{ mb: 2 }}>
+                        <Typography variant="caption" color="#64748b" sx={{ mb: 1, display: 'block', fontWeight: 700 }}>{t('ticket.remarks')}</Typography>
+                        <TextField
+                            fullWidth
+                            multiline
+                            rows={2}
+                            value={formData.remarks || ''}
+                            onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                            variant="outlined"
+                            size="small"
                         />
                     </Box>
                 </Paper>
@@ -320,91 +382,90 @@ export default function TicketForm({
                 {/* Summary Bar Section */}
                 <Box sx={{
                     p: 3,
-                    bgcolor: '#1e293b',
+                    bgcolor: alpha(theme.palette.primary.main, 0.05),
                     borderRadius: 3,
                     mb: 3,
                     display: 'grid',
                     gridTemplateColumns: 'repeat(3, 1fr)',
-                    color: '#fff',
-                    textAlign: 'center'
+                    color: 'text.primary',
+                    textAlign: 'center',
+                    border: '1px solid',
+                    borderColor: alpha(theme.palette.primary.main, 0.1)
                 }}>
-                    <Box sx={{ borderRight: '1px solid #475569' }}>
-                        <Typography variant="caption" color="#94a3b8">{t('ticket.netWeight')}</Typography>
-                        <Typography variant="h4" fontWeight={800} color="#4ade80">
+                    <Box sx={{ borderRight: '1px solid', borderColor: alpha(theme.palette.divider, 0.5) }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600}>{t('ticket.netWeight')}</Typography>
+                        <Typography variant="h4" fontWeight={800} color="primary.main">
                             {calculations.net.toLocaleString()} <span style={{ fontSize: '0.8rem' }}>กก.</span>
                         </Typography>
                     </Box>
-                    <Box sx={{ borderRight: '1px solid #475569' }}>
-                        <Typography variant="caption" color="#94a3b8">ราคาต่อหน่วย</Typography>
+                    <Box sx={{ borderRight: '1px solid', borderColor: alpha(theme.palette.divider, 0.5) }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600}>ราคาต่อหน่วย</Typography>
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: 1 }}>
                             <TextField
                                 size="small"
                                 variant="standard"
                                 type="number"
                                 value={formData.unitPrice || ''}
-                                onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value === '' ? 0 : Number(e.target.value) })}
-                                InputProps={{ disableUnderline: true }}
+                                // onChange removed to make it read-only
+                                InputProps={{
+                                    readOnly: true,
+                                    disableUnderline: true
+                                }}
                                 sx={{
                                     width: 80,
-                                    '& input': { textAlign: 'right', p: 0, fontWeight: 800, fontSize: '2rem', color: '#fff' }
+                                    '& input': { textAlign: 'right', p: 0, fontWeight: 800, fontSize: '2rem', color: 'primary.main' }
                                 }}
                             />
-                            <Typography variant="h5" fontWeight={600}>บาท</Typography>
+                            <Typography variant="h5" fontWeight={600} color="primary.dark">บาท</Typography>
                         </Box>
                     </Box>
                     <Box>
-                        <Typography variant="caption" color="#94a3b8">{t('ticket.totalPrice')}</Typography>
-                        <Typography variant="h4" fontWeight={800} color="#facc15">
+                        <Typography variant="caption" color="text.secondary" fontWeight={600}>{t('ticket.totalPrice')}</Typography>
+                        <Typography variant="h4" fontWeight={800} color="#ed6c02">
                             {calculations.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '0.8rem' }}>บาท</span>
                         </Typography>
                     </Box>
                 </Box>
 
-                {/* Remarks Section */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <Box sx={{ flexGrow: 1, mr: 4 }}>
-                        <Typography variant="caption" color="#64748b" sx={{ mb: 1, display: 'block', fontWeight: 700 }}>{t('ticket.remarks')}</Typography>
-                        <TextField
+                <Box sx={{ borderTop: '1px solid', borderColor: alpha(theme.palette.divider, 0.5), pt: 3 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                        <Box>
+                            <Typography variant="body2" color="#64748b" fontWeight={600}>
+                                ผู้บันทึกรายการ: <span style={{ color: '#1e293b' }}>{formData.createdBy}</span>
+                            </Typography>
+                        </Box>
+                    </Box>
+
+                    <Stack spacing={2}>
+                        <Button
                             fullWidth
-                            multiline
-                            rows={3}
-                            value={formData.remarks || '-'}
-                            onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                            variant="contained"
+                            size="large"
+                            onClick={() => handleSubmit()}
+                            disabled={!activePriceInfo && !editingTicket}
+                            sx={{ borderRadius: 3, py: 1.5, fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}
+                        >
+                            {t('ticket.btnSave')}
+                        </Button>
+                        <Button
+                            fullWidth
+                            variant="contained"
+                            size="large"
+                            onClick={() => handleSubmit('approved')}
+                            disabled={!activePriceInfo && !editingTicket}
+                            sx={{ borderRadius: 3, py: 1.5, fontWeight: 800, bgcolor: 'primary.main', fontSize: '1.1rem', boxShadow: '0 8px 16px -4px rgba(26, 51, 126, 0.3)', '&:hover': { bgcolor: '#10265a' } }}
+                        >
+                            Save & Approve
+                        </Button>
+                        <Button
+                            fullWidth
                             variant="outlined"
-                            sx={{ bgcolor: '#fff' }}
-                        />
-                    </Box>
-                    <Box sx={{ textAlign: 'right', pt: 4 }}>
-                        <Typography variant="body2" color="#64748b" fontWeight={600}>
-                            ผู้บันทึกรายการ: <span style={{ color: '#1e293b' }}>{formData.createdBy}</span>
-                        </Typography>
-                        <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                            <Button
-                                variant="outlined"
-                                size="large"
-                                startIcon={null}
-                                sx={{ borderRadius: 2, px: 3, fontWeight: 700, borderColor: '#e2e8f0', color: '#64748b' }}
-                            >
-                                {t('ticket.btnPrint')}
-                            </Button>
-                            <Button
-                                variant="contained"
-                                size="large"
-                                onClick={() => handleSubmit()}
-                                sx={{ borderRadius: 2, px: 3, fontWeight: 700, bgcolor: '#64748b', '&:hover': { bgcolor: '#475569' } }}
-                            >
-                                {t('ticket.btnSave')}
-                            </Button>
-                            <Button
-                                variant="contained"
-                                size="large"
-                                onClick={() => handleSubmit('approved')}
-                                sx={{ borderRadius: 2, px: 3, fontWeight: 700, bgcolor: '#1a337e', '&:hover': { bgcolor: '#10265a' } }}
-                            >
-                                Save & Approve
-                            </Button>
-                        </Stack>
-                    </Box>
+                            size="large"
+                            sx={{ borderRadius: 3, py: 1.5, fontWeight: 700, borderColor: alpha(theme.palette.divider, 0.5), color: 'text.secondary' }}
+                        >
+                            {t('ticket.btnPrint')}
+                        </Button>
+                    </Stack>
                 </Box>
             </Box>
         </Dialog>

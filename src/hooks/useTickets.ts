@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Ticket } from '../types';
 
-import { API_BASE_URL } from '../config';
+import { authFetch } from '../utils/api';
 
 
 export function useTickets() {
@@ -12,7 +12,7 @@ export function useTickets() {
     const fetchTickets = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/tickets`);
+            const response = await authFetch('/tickets');
             if (!response.ok) throw new Error('Failed to fetch tickets');
             const data = await response.json();
 
@@ -57,9 +57,8 @@ export function useTickets() {
 
     const addTicket = useCallback(async (ticket: Omit<Ticket, 'id' | 'createdAt'>) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/tickets`, {
+            const response = await authFetch('/tickets', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     TicketNo: ticket.ticketNumber,
                     VehicleID: ticket.VehicleID,
@@ -87,7 +86,7 @@ export function useTickets() {
 
     const approveTicket = useCallback(async (id: string) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/tickets/${id}/approve`, {
+            const response = await authFetch(`/tickets/${id}/approve`, {
                 method: 'PATCH',
             });
             if (!response.ok) throw new Error('Failed to approve ticket');

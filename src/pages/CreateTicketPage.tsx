@@ -83,7 +83,7 @@ export default function CreateTicketPage() {
                             boxShadow: '0 4px 12px rgba(30, 58, 138, 0.2)'
                         }}
                     >
-                        {t('ticket.create')}
+                        {t('Create Ticket')}
                     </Button>
                 </Box>
             </Box>

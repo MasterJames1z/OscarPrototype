@@ -32,6 +32,7 @@ import {
 } from '@mui/icons-material';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/useApp';
+import { useAuth } from '../context/AuthContext';
 
 const drawerWidth = 260;
 
@@ -41,6 +42,7 @@ export default function SidebarLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const { language, setLanguage, mode, setMode, t } = useApp();
+    const { user, logout } = useAuth();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [sidebarVisible, setSidebarVisible] = useState(true);
 
@@ -100,7 +102,9 @@ export default function SidebarLayout() {
                         mx: 'auto',
                         border: '1px solid',
                         borderColor: 'divider'
-                    }}>Z</Avatar>
+                    }}>
+                        {user?.firstname ? user.firstname.charAt(0) : 'U'}
+                    </Avatar>
                     <Box sx={{
                         position: 'absolute',
                         bottom: 2,
@@ -113,11 +117,22 @@ export default function SidebarLayout() {
                         borderColor: 'background.paper'
                     }} />
                 </Box>
-                <Typography variant="body1" sx={{ mt: 2, fontWeight: 700 }}>admin -</Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 2.5 }}>ZYTEST - ADMIN -</Typography>
+                <Typography variant="body1" sx={{ mt: 2, fontWeight: 700 }}>
+                    {user ? `${user.firstname} ${user.lastname}` : 'Guest'}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 2.5 }}>
+                    {user ? `Plant: ${user.plant}` : 'Please Login'}
+                </Typography>
                 <Stack direction="row" spacing={1} justifyContent="center">
                     <Button size="small" variant="outlined" sx={{ borderRadius: 4, px: 2, py: 0.5, fontSize: '0.7rem' }}>EditProfile</Button>
-                    <Button size="small" variant="outlined" sx={{ borderRadius: 4, px: 2, py: 0.5, fontSize: '0.7rem' }}>Logout</Button>
+                    <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={logout}
+                        sx={{ borderRadius: 4, px: 2, py: 0.5, fontSize: '0.7rem', borderColor: 'error.main', color: 'error.main', '&:hover': { borderColor: 'error.dark', bgcolor: 'error.lighter' } }}
+                    >
+                        Logout
+                    </Button>
                 </Stack>
             </Box>
 

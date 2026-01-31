@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
     Box,
     Card,
@@ -7,11 +6,7 @@ import {
     IconButton,
     Chip,
     Stack,
-    TextField,
-    InputAdornment,
     alpha,
-    Tabs,
-    Tab,
     useTheme,
 } from '@mui/material';
 import dayjs from 'dayjs';
@@ -19,11 +14,10 @@ import {
     DeleteOutline as DeleteIcon,
     EditOutlined as EditIcon,
     ContentCopyOutlined as ContentCopyIcon,
-    Search as SearchIcon,
     Warning as WarningIcon,
     TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
-import type { PriceCard, CardStatus } from '../types';
+import type { PriceCard } from '../types';
 import { doRangesOverlap, getCardStatus, calculateDays } from '../utils/date.ts';
 import { useApp } from '../context/useApp';
 
@@ -34,18 +28,10 @@ interface CardsViewProps {
     onDelete: (id: string) => void;
 }
 
+// Filtering is now handled at the parent level (PostingPriceListPage)
 export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: CardsViewProps) {
     const { t } = useApp();
     const theme = useTheme();
-    const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState<CardStatus | 'all'>('all');
-
-    const filteredCards = cards.filter(c => {
-        const matchesSearch = (c.ProductName || '').toLowerCase().includes(search.toLowerCase());
-        const currentStatus = getCardStatus(c.EffectiveDate, c.ToDate);
-        const matchesStatus = statusFilter === 'all' || currentStatus === statusFilter;
-        return matchesSearch && matchesStatus;
-    });
 
     const checkOverlap = (card: PriceCard) => {
         return cards.some(other =>
@@ -57,72 +43,9 @@ export default function CardsView({ cards, onEdit, onDuplicate, onDelete }: Card
 
     return (
         <Box sx={{ p: { xs: 2, md: 1 }, height: '100%', overflowY: 'auto' }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 4 }} alignItems={{ md: 'center' }}>
-                <TextField
-                    placeholder={t('search.placeholder')}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    sx={{
-                        flexGrow: 1,
-                        '& .MuiOutlinedInput-root': {
-                            borderRadius: 3,
-                            bgcolor: 'background.paper',
-                            '& fieldset': { borderColor: alpha(theme.palette.primary.main, 0.1) },
-                        }
-                    }}
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <SearchIcon sx={{ color: 'primary.main' }} />
-                            </InputAdornment>
-                        ),
-                    }}
-                />
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 3, mt: 2 }}>
 
-                <Tabs
-                    value={statusFilter}
-                    onChange={(_e, newValue) => setStatusFilter(newValue)}
-                    variant="scrollable"
-                    scrollButtons="auto"
-                    allowScrollButtonsMobile
-                    sx={{
-                        bgcolor: alpha(theme.palette.primary.main, 0.03),
-                        borderRadius: 3,
-                        p: 0.5,
-                        minHeight: 48,
-                        '& .MuiTabs-flexContainer': {
-                            gap: 0.5
-                        },
-                        '& .MuiTabs-indicator': {
-                            height: '100%',
-                            borderRadius: 2.5,
-                            bgcolor: 'primary.main',
-                            zIndex: 0
-                        },
-                        '& .MuiTab-root': {
-                            zIndex: 1,
-                            minHeight: 38,
-                            borderRadius: 2.5,
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            color: 'text.secondary',
-                            transition: 'color 0.2s',
-                            minWidth: { xs: 80, sm: 100 },
-                            '&.Mui-selected': {
-                                color: '#fff'
-                            }
-                        }
-                    }}
-                >
-                    <Tab label={t('status.all')} value="all" />
-                    <Tab label={t('status.active')} value="active" />
-                    <Tab label={t('status.upcoming')} value="upcoming" />
-                    <Tab label={t('status.expired')} value="expired" />
-                </Tabs>
-            </Stack>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 3 }}>
-                {filteredCards.map(card => {
+                {cards.map((card: PriceCard) => {
                     const hasOverlap = checkOverlap(card);
                     const currentStatus = getCardStatus(card.EffectiveDate, card.ToDate);
 
