@@ -74,6 +74,34 @@ export interface Ticket {
   VehicleID?: number;
   createdAt: string;
   createdBy: string;
+  // SAP Integration Fields
+  SAP_DBName?: string;
+  SAP_RefNo?: string;
+  SAP_DocNum?: number;
+  SAP_DocEntry?: number;
+  SAP_PostingDate?: string; // YYYY-MM-DD
+  SAP_DueDate?: string;
+  SAP_TaxDate?: string;
+  SAP_CardCode?: string;
+  SAP_NumAtCard?: string;
+  SAP_Address?: string;
+  SAP_Address2?: string;
+  SAP_Comments?: string;
+  VatAmount?: number;
+  GrandTotal?: number;
+  LineNum?: number;
+  ItemCode?: string;
+  ItemName?: string;
+  UnitMsr?: string;
+  GrossPrice?: number;
+  TaxCode?: string;
+  WhsCode?: string;
+  BranchCode?: string;
+  DeptCode?: string;
+  ProjectCode?: string;
+  SAP_BaseType?: string;
+  SAP_BaseRef?: number;
+  SAP_BaseLine?: number;
 }
 export interface PriceHistory {
   HistoryID: number;

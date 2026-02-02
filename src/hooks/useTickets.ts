@@ -41,6 +41,36 @@ export function useTickets() {
                 remarks: t.Remarks,
                 createdAt: t.TimeIn,
                 createdBy: t.CreatedBy,
+
+                // SAP Fields Mapping
+                SAP_NumAtCard: t.SAP_NumAtCard,
+                SAP_TaxDate: t.SAP_TaxDate ? t.SAP_TaxDate.split('T')[0] : '',
+                SAP_CardCode: t.SAP_CardCode,
+                SAP_Address: t.SAP_Address,
+                SAP_Address2: t.SAP_Address2,
+                SAP_DBName: t.SAP_DBName,
+                SAP_RefNo: t.SAP_RefNo,
+                SAP_BaseLine: t.SAP_BaseLine,
+                SAP_BaseRef: t.SAP_BaseRef,
+                SAP_BaseType: t.SAP_BaseType,
+                SAP_Comments: t.SAP_Comments,
+                SAP_DocEntry: t.SAP_DocEntry,
+                SAP_DocNum: t.SAP_DocNum,
+                SAP_DueDate: t.SAP_DueDate ? t.SAP_DueDate.split('T')[0] : '',
+                SAP_PostingDate: t.SAP_PostingDate ? t.SAP_PostingDate.split('T')[0] : '',
+                VatAmount: t.VatAmount,
+                GrandTotal: t.GrandTotal,
+                GrossPrice: t.GrossPrice,
+                LineNum: t.LineNum,
+                ItemCode: t.ItemCode,
+                ItemName: t.ItemName,
+                UnitMsr: t.UnitMsr,
+                TaxCode: t.TaxCode,
+                WhsCode: t.WhsCode,
+                BranchCode: t.BranchCode,
+                DeptCode: t.DeptCode,
+                ProjectCode: t.ProjectCode,
+                VehicleID: t.VehicleID
             }));
 
             setTickets(mappedTickets);
@@ -69,7 +99,38 @@ export function useTickets() {
                     WeightOut: ticket.weightOut,
                     UnitPrice: ticket.unitPrice,
                     CreatedBy: ticket.createdBy,
-                    Remarks: ticket.remarks
+                    Remarks: ticket.remarks,
+
+                    // SAP Fields
+                    SAP_NumAtCard: ticket.SAP_NumAtCard,
+                    SAP_TaxDate: ticket.SAP_TaxDate,
+                    SAP_CardCode: ticket.SAP_CardCode,
+                    SAP_Address: ticket.SAP_Address,
+                    SAP_Address2: ticket.SAP_Address2,
+                    SAP_DBName: ticket.SAP_DBName,
+                    SAP_RefNo: ticket.SAP_RefNo || ticket.ticketNumber,
+                    SAP_BaseLine: ticket.SAP_BaseLine,
+                    SAP_BaseRef: ticket.SAP_BaseRef,
+                    SAP_BaseType: ticket.SAP_BaseType,
+                    SAP_Comments: ticket.SAP_Comments,
+                    SAP_DocEntry: ticket.SAP_DocEntry,
+                    SAP_DocNum: ticket.SAP_DocNum,
+                    SAP_DueDate: ticket.SAP_DueDate,
+                    SAP_PostingDate: ticket.SAP_PostingDate,
+
+                    // Amounts & Codes
+                    VatAmount: ticket.VatAmount,
+                    GrandTotal: ticket.GrandTotal,
+                    GrossPrice: ticket.GrossPrice,
+                    LineNum: ticket.LineNum,
+                    ItemCode: ticket.ItemCode,
+                    ItemName: ticket.ItemName,
+                    UnitMsr: ticket.UnitMsr,
+                    TaxCode: ticket.TaxCode,
+                    WhsCode: ticket.WhsCode,
+                    BranchCode: ticket.BranchCode,
+                    DeptCode: ticket.DeptCode,
+                    ProjectCode: ticket.ProjectCode
                 }),
             });
             if (!response.ok) throw new Error('Failed to create ticket');

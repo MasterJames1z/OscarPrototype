@@ -18,6 +18,7 @@ import { useApp } from '../context/useApp';
 import { useAuth } from '../context/AuthContext';
 import type { Ticket, ResourceOption, PaymentType, Product, Vendor, Vehicle } from '../types';
 import { authFetch } from '../utils/api';
+import { printTicket } from '../utils/printTicket';
 
 interface TicketFormProps {
     open: boolean;
@@ -132,13 +133,35 @@ export default function TicketForm({
     }, [formData.weightIn, formData.weightOut, formData.impurity, formData.moisture, formData.unitPrice]);
 
     const handleSubmit = (statusOverride?: 'approved' | 'pending') => {
+        const netWeight = calculations.net;
+        const total = calculations.total;
+        const vatAmount = total * 0.07;
+        const grandTotal = total + vatAmount;
+
         onSubmit({
             ...formData,
-            netWeight: calculations.net,
+            netWeight: netWeight,
             deductedWeight: calculations.deducted,
             remainingWeight: calculations.remaining,
-            totalPrice: calculations.total,
-            status: statusOverride || editingTicket?.status || 'pending'
+            totalPrice: total,
+            status: statusOverride || editingTicket?.status || 'pending',
+
+            // SAP Integration Fields
+            VatAmount: vatAmount,
+            GrandTotal: grandTotal,
+            GrossPrice: (formData.unitPrice || 0) * 1.07,
+            SAP_DBName: 'SB_OSCAR_LIVE', // Default Config
+            SAP_PostingDate: dayjs().format('YYYY-MM-DD'),
+            SAP_DueDate: dayjs().format('YYYY-MM-DD'), // Default
+            SAP_Address2: '33/1 หมู่ที่ 9 ตำบลไสหร้า อำเภอฉวาง จังหวัดนครศรีธรรมราช', // Default Plant Address
+            LineNum: 0,
+            UnitMsr: 'KG',
+            TaxCode: 'V7',
+            WhsCode: 'WH-OSW01', // Default
+            BranchCode: 'OSW01-OP', // Default
+            DeptCode: '',
+            ProjectCode: '',
+            SAP_BaseType: formData.paymentType === 'po' ? '22' : undefined
         });
         onClose();
     };
@@ -234,12 +257,58 @@ export default function TicketForm({
                                 setFormData({
                                     ...formData,
                                     sellerName: newValue || '',
-                                    VendorID: selectedVendor?.VendorID
+                                    VendorID: selectedVendor?.VendorID,
+                                    SAP_CardCode: selectedVendor?.VendorCode,
+                                    SAP_Address: selectedVendor?.VendorAddress
                                 });
                             }}
                             renderInput={(params) => <TextField {...params} label={t('ticket.seller')} size="small" />}
                         />
                     </Box>
+
+                    {/* Tax Information */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 2 }}>
+                        <TextField
+                            label="Tax Invoice No."
+                            value={formData.SAP_NumAtCard || ''}
+                            onChange={(e) => setFormData({ ...formData, SAP_NumAtCard: e.target.value })}
+                            size="small"
+                            helperText="เลขที่ใบกำกับภาษี"
+                        />
+                        <TextField
+                            label="Tax Invoice Date"
+                            type="date"
+                            value={formData.SAP_TaxDate || ''}
+                            onChange={(e) => setFormData({ ...formData, SAP_TaxDate: e.target.value })}
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                            helperText="วันที่ใบกำกับภาษี"
+                        />
+                    </Box>
+
+                    {/* PO Information */}
+                    {formData.paymentType === 'po' && (
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 2, p: 2, bgcolor: '#fff7ed', borderRadius: 2, border: '1px dashed #f97316' }}>
+                            <TextField
+                                label="PO Number"
+                                value={formData.SAP_BaseRef || ''}
+                                onChange={(e) => setFormData({ ...formData, SAP_BaseRef: parseInt(e.target.value) || undefined })}
+                                type="number"
+                                size="small"
+                                helperText="เลขที่ใบสั่งซื้อ (Purchase Order)"
+                                fullWidth
+                            />
+                            <TextField
+                                label="PO Line Num"
+                                value={formData.SAP_BaseLine || 0}
+                                onChange={(e) => setFormData({ ...formData, SAP_BaseLine: parseInt(e.target.value) || 0 })}
+                                type="number"
+                                size="small"
+                                helperText="ลำดับรายการ (Line Num)"
+                                fullWidth
+                            />
+                        </Box>
+                    )}
 
                     <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 2, mb: 2 }}>
                         <Autocomplete
@@ -251,7 +320,9 @@ export default function TicketForm({
                                 setFormData({
                                     ...formData,
                                     resourceName: newValue?.value || '',
-                                    ProductID: selectedProduct?.ProductID
+                                    ProductID: selectedProduct?.ProductID,
+                                    ItemCode: selectedProduct?.ProductCode,
+                                    ItemName: selectedProduct?.ProductName
                                 });
                             }}
                             renderInput={(params) => <TextField {...params} label={t('ticket.product')} size="small" fullWidth />}
@@ -300,7 +371,7 @@ export default function TicketForm({
                         <Box sx={{ p: 2 }}>
                             <Typography variant="subtitle1" fontWeight={700} color="#1e293b" gutterBottom>เวลาและน้ำหนักขาเข้า</Typography>
                             <Typography variant="caption" color="#64748b" sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                วันที่-เวลา เข้า: <span>{formData.entryDateTime}</span>
+                                วันที่-เวลา เข้า: <span>{formData.entryDateTime ? dayjs(formData.entryDateTime).format('DD/MM/YYYY HH:mm:ss') : '-'}</span>
                             </Typography>
                         </Box>
                         <Box sx={{ p: 3, bgcolor: '#eff6ff', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -341,7 +412,7 @@ export default function TicketForm({
                         <Box sx={{ p: 2 }}>
                             <Typography variant="subtitle1" fontWeight={700} color="#1e293b" gutterBottom>เวลาและน้ำหนักขาออก</Typography>
                             <Typography variant="caption" color="#64748b" sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                วันที่-เวลา ออก: <span>{formData.exitDateTime}</span>
+                                วันที่-เวลา ออก: <span>{formData.exitDateTime ? dayjs(formData.exitDateTime).format('DD/MM/YYYY HH:mm:ss') : '-'}</span>
                             </Typography>
                         </Box>
                         <Box sx={{ p: 3, bgcolor: '#fff7ed', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -461,6 +532,15 @@ export default function TicketForm({
                             fullWidth
                             variant="outlined"
                             size="large"
+                            onClick={() => printTicket({
+                                ...formData,
+                                weightIn: formData.weightIn,
+                                weightOut: formData.weightOut,
+                                netWeight: calculations.net,
+                                totalPrice: calculations.total,
+                                VatAmount: 0,
+                                GrandTotal: calculations.total
+                            })}
                             sx={{ borderRadius: 3, py: 1.5, fontWeight: 700, borderColor: alpha(theme.palette.divider, 0.5), color: 'text.secondary' }}
                         >
                             {t('ticket.btnPrint')}
